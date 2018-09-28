@@ -1,0 +1,16 @@
+This file will answer these questions:
+1. What is your area of interest? What are you specifically going to investigate?
+2. What dataset are you going to use to do your investigation?
+    A. Provide a link
+    B. Describe the format - is it a file, a website, a database, etc.
+    C. How big is the dataset? How many rows and how many columns?
+3. How are you going to collect your dataset? Is it a simple download or will you write a web crawler?
+4. What is your procedure for conducting your investigation?
+    A. What preprocessing will you do on your data?
+    B. What machine learning techniques will you use (feel free to consult an instructor on any bullet, but especially here)?
+    C. Is there any other software development necessary to conduct your investigation?
+5. How will you evaluate your system once it has been built?
+
+1. My area of interest is artwork: specifically abstract art. I will investigate how to make a computer learn to create an abstract 
+piece of art.
+2.
