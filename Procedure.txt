@@ -12,10 +12,11 @@ This file will answer these questions:
 5. How will you evaluate your system once it has been built?
 
 1. My area of interest is artwork. I will investigate how to make a computer learn to create a piece of art.
+The type of art will be water color.
 2. The dataset I am using is the BAM dataset at this link: https://bam-dataset.org/ . It is a sqlite database
 and the one I am using has 1379284 rows and 5 columns in the place the pictures are stored.
 3. The database is a download, but it comes with 7 different types of images. I am going to sort it and 
-make my own set of images of the type I want, oil paint images. I will have it find and download all the images
+make my own set of images of the type I want, water color images. I will have it find and download all the images
 under that label and put it into a folder to use.
 4.I will search through the dataset and find all the links with images that are labeled oil paint, and then I will
 download those images and put them into a folder. I will be using a generative neural network to develop new
