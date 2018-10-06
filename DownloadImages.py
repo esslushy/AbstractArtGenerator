@@ -7,7 +7,7 @@ linkFile.close()
 directory = "/Volumes/Seagate Exp/ImagesForArtGenerator/"
 ext = ".jpg"
 randnum = 1000000
-for link in linkArr[]:
+for link in linkArr:
     try:
         urllib.request.urlretrieve(link, directory+str(randnum)+ext)
         print("Downloading image from " + link + " to directory " + directory+str(randnum)+ext)
