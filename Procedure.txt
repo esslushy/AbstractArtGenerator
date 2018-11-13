@@ -28,7 +28,11 @@ the links attached to them in the table with the link sources. I will then downl
 downloaded images I will make sure through a brief overview that none are unusable or don't match the correct style. This led me to
 having a little over 100k images to use. Because an input is static on a neural network I have to  resize all the images to around the
 same size which will cause compression and quality issues, but I don't see a way to get around it and will possibly lead to more 
-interesting results. 
+interesting results. The generative network will take a 100 input and reshape it into a 65536*0.5*0.5 cube and go through 10 transposed convolutional
+layers until it is a width of 3 and a size of 512 x 512. I chose this size since it is scaled to the size of
+my 256x256 images instead of the papers 32x32. The output is a tanh function. The discriminator will do 
+the reverse. It will take the image produced and run it through 10 convolutional layers until it is 65536*0.5*0.5
+and then I will normalize it between 0 and 1, 1 being real and 0 being fake.
 5. The stretch goal for this project is to have it graded by an adversarial neural network, however the first time through with the
 neural network I will have a currently unknown, but hopefully 5-10 people grade it on the rubric outlined below on about 500 images
 total that it will produce, I will then submit these back into the neural network and run it again. If this turns out to be too slow
@@ -43,3 +47,6 @@ to provide a good looking image.
 2. Does the painting replicate nature or other subjects from life.
 3. Does it balance between empty space and filled space.
 4. is the shading natural and flows nicely and correctly.
+
+
+DCGANN guide: https://arxiv.org/pdf/1511.06434.pdf

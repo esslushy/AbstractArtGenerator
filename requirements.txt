@@ -1,2 +1,7 @@
 pandas
 opencv-python
+torchvision
+tensorboardx
+matplotlib
+numpy
+IPython
