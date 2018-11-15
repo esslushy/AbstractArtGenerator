@@ -4,4 +4,3 @@ torchvision
 tensorboardx
 matplotlib
 numpy
-IPython

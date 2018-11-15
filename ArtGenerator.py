@@ -8,16 +8,17 @@ from torch.autograd import Variable
 
 from torchvision import transforms, datasets
 #get data
-def cifarData():
+def watercolorData():
     compose = transforms.Compose(
         [
-            transforms.Resize(64),
+            transforms.Resize(256),
             transforms.ToTensor(),
             transforms.Normalize((.5, .5, .5), (.5, .5, .5))
         ])
-    return datasets.ImageFolder("Seagate Drive", transform=compose)
+    dataPath="./dataset"
+    return datasets.CIFAR10(root=dataPath, train=True, transform=compose, download=True)
 
-data = cifarData()
+data = watercolorData()
 batchSize = 100
 dataLoader = torch.utils.data.DataLoader(data, batch_size=batchSize, shuffle=True)
 numBatches = len(dataLoader)
@@ -109,7 +110,7 @@ class DiscriminativeNet(torch.nn.Module):
             nn.LeakyReLU(0.2, inplace=True)
         )
         self.out = nn.Sequential(
-            nn.Linear(65536*0.5*0.5, 1),#what the generator takes
+            nn.Linear(65536*4*4, 1),#what the generator takes
             nn.Sigmoid(),#narrows it between 0 (fake) and 1 (real)
         )
 
@@ -135,7 +136,7 @@ class GenerativeNet(torch.nn.Module):
     def __init__(self):
         super(GenerativeNet, self).__init__()
         
-        self.linear = torch.nn.Linear(100, 65536*0.5*0.5)
+        self.linear = torch.nn.Linear(100, 65536*4*4)
         
         self.conv1 = nn.Sequential(
             nn.ConvTranspose2d(
@@ -220,7 +221,7 @@ class GenerativeNet(torch.nn.Module):
     def forward(self, x):
         # Project and reshape
         x = self.linear(x)
-        x = x.view(x.shape[0], 65536, 0.5, 0.5)
+        x = x.view(x.shape[0], 65536, 4, 4)
         # Convolutional layers
         x = self.conv1(x)
         x = self.conv2(x)

@@ -236,12 +236,12 @@ for epoch in range(num_epochs):
         # Log error
         logger.log(d_error, g_error, epoch, n_batch, num_batches)
         
+        test_images = generator(test_noise).data.cpu()
         # Display Progress
         if (n_batch) % 100 == 0:
             display.clear_output(True)
             # Display Images
-            test_images = generator(test_noise).data.cpu()
-            logger.log_images(test_images, num_test_samples, epoch, n_batch, num_batches);
+            logger.log_images(test_images, num_test_samples, epoch, n_batch, num_batches)
             # Display status Logs
             logger.display_status(
                 epoch, num_epochs, n_batch, num_batches,
@@ -249,3 +249,7 @@ for epoch in range(num_epochs):
             )
         # Model Checkpoints
         logger.save_models(generator, discriminator, epoch)
+        if type(test_images) == np.ndarray:
+            images = torch.from_numpy(test_images)
+            images = images.transpose(1,3)
+        
