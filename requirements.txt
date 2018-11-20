@@ -1,6 +1,9 @@
 pandas
 opencv-python
+#for tests
 torchvision
 tensorboardx
-matplotlib
+#in all
 numpy
+matplotlib
+tensorflow
