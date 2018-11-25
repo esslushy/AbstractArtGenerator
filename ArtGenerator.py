@@ -94,7 +94,7 @@ def train(sess, realData, fakeData, optimizer, discriminator, trainableVariables
     
     totalLoss = lossReal + lossFake + lossRegularizer
     
-        #Backpropagate and update weights
+    #Backpropagate and update weights
     optimizer.minimize(totalLoss, var_list=trainableVariables)
     
     """Generator""" #uses previous fake data
@@ -130,8 +130,6 @@ with tf.Session(config=config) as sess:
                 fakeImages = makeFakeImages(sess, len(realImages))
                 #train discriminator and generator
                 discriminatorLoss, generatorLoss = train(sess, realImages, fakeImages, discriminatorOptimizer, discriminator, discriminatorTrainableVariables, generatorOptimizer, generator, generatorTrainableVariables)
-                sess.run(discriminatorLoss.initializer)
-                sess.run(generatorLoss.initializer)
                 print(discriminatorLoss.eval(), generatorLoss.eval())
             except tf.errors.OutOfRangeError:
                 break
