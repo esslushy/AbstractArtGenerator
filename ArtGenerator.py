@@ -133,7 +133,7 @@ with tf.Session(config=config) as sess:
                 fakeImages = makeFakeImages(sess, len(realImages))
                 #train discriminator and generator
                 discriminatorLoss, generatorLoss = train(sess, realImages, fakeImages, discriminatorOptimizer, discriminator, discriminatorTrainableVariables, generatorOptimizer, generator, generatorTrainableVariables)
-                print("Discriminator Loss:\t" + str(discriminatorLoss.eval()), "Generator Loss:\t" + str(generatorLoss.eval()))
+                print("Discriminator Loss:\t" + str(discriminatorLoss.eval()) + "\tGenerator Loss:\t" + str(generatorLoss.eval()))
             except tf.errors.OutOfRangeError:
                 break
         #show images after each run
