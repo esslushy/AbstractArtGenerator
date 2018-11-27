@@ -4,3 +4,5 @@
 /data
 /MNIST-data
 ImagesX64.npy
+/info
+/model

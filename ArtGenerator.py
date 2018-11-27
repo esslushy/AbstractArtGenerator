@@ -1,145 +1,191 @@
-#tensor needs this stuff
-from __future__ import absolute_import, division, print_function
+#These imports are used for the dataset because torch has a better implementation of getting the data
+from torch.utils.data import dataloader
+from torchvision import transforms, datasets
 
-import numpy as np
+#These imports are for the network itself
 import tensorflow as tf
-from tensorflow import layers
+from tensorflow import nn, layers
+from tensorflow.contrib import layers as contribLayers
+import numpy as np
+#to show test images
 import matplotlib.pyplot as plt
+from PIL import Image
+import torch
+#personal files
 from ops import *
 
-tf.logging.set_verbosity(tf.logging.INFO)#make tesnorflow log stuffs
-tf.set_random_seed(7)#constant seed so rng won't affect from different runs
+def getCifarDataset():
+    compose = transforms.Compose([
+        transforms.Resize(64), 
+        transforms.ToTensor(), #converts an image from 0 -> 255 to 0 -> 1 and into a floatTensor of channels x height x width
+        transforms.Normalize((.5, .5, .5), (.5, .5, .5))])#normalizes between -1 and 1 because that what generator outputs
+        #works because subtracts each rgb channel by .5 and divides by .5 so least is -1 and most is 1
+    return datasets.CIFAR10(root="./dataset", train=True, transform=compose, download=True)
 
-#standardized variables
-batchSize = 100 #each batch will have 100 images
-numEpochs = 200#number of training epochs
-showBatchSize = 16#number of test images
+"""Load and Prepare Data"""
+dataset = getCifarDataset()
+batchSize = 100
+dataLoader = dataloader.DataLoader(dataset, batch_size=batchSize, shuffle=True)
+numBatches = len(dataLoader)
+imageShape = (64, 64, 3)
+noiseLength = 100
+numEpochs = 200
+#standardize randomness
+tf.set_random_seed(7)
 
-#prepare data
-dataset = loadImages("ImagesX64.npy")
-batchedDataset = dataset.shuffle(93000).batch(batchSize)
-iterator = batchedDataset.make_initializable_iterator()
-nextBatch = iterator.get_next()
+"""Models"""
+#takes image x and ouputs a value between 0 and 1 where 0 is fake and 1 is real
+def discriminator(x):
+    with tf.variable_scope("discriminator", reuse=tf.AUTO_REUSE):
+        with tf.variable_scope("convolutional_layer_1"):
+            x = convolutLayer(x, 128)#3x64x64 -> 128x32x32
+            #don't batch normalize in first layer of discriminator
+            x = nn.leaky_relu(x, alpha=0.2)
+        with tf.variable_scope("convolutional_layer_2"):
+            x = convolutLayer(x, 256)#128x32x32 -> 256x16x16
+            x = layers.batch_normalization(x)
+            x = nn.leaky_relu(x, alpha=0.2)
+        with tf.variable_scope("convolutional_layer_3"):
+            x = convolutLayer(x, 512)#256x16x16 -> 512x8x8
+            x = layers.batch_normalization(x)
+            x = nn.leaky_relu(x, alpha=0.2)
+        with tf.variable_scope("convolution_layer_4"):
+            x = convolutLayer(x, 1024)#512x8x8 -> 1024x4x4
+            x = layers.batch_normalization(x)
+            x = nn.leaky_relu(x, alpha=0.2)
+        with tf.variable_scope("linear"):
+            x = contribLayers.flatten(x)#from 3d object 1024x4x4
+            x = contribLayers.fully_connected(x, 1)#1024x4x4 to a shape of 1 to sigmoid
+        with tf.variable_scope("output"):
+            out = nn.sigmoid(x)
+    return out
 
+def generator(z):
+    with tf.variable_scope("generator"):
+        with tf.variable_scope("reshape_and_flatten"):
+            z = contribLayers.fully_connected(z, 1024 * 4 * 4)#flatten
+            z = tf.reshape(z, (-1, 4, 4, 1024))#reshape
+        with tf.variable_scope("deconvolutional_layer_1"):
+            z = deconvolutLayer(z, 512)#1024x4x4 -> 512x8x8
+            z = layers.batch_normalization(z)
+            z = nn.relu(z)
+        with tf.variable_scope("deconvolutional_layer_2"):
+            z = deconvolutLayer(z, 256)#512x8x8 -> 256x16x16
+            z = layers.batch_normalization(z)
+            z = nn.relu(z)
+        with tf.variable_scope("deconvolutional_layer_3"):
+            z = deconvolutLayer(z, 128)#256x16x16 -> 128x32x32
+            z = layers.batch_normalization(z)
+            z = nn.relu(z)
+        with tf.variable_scope("deconvolutional_layer_4"):
+            z = deconvolutLayer(z, 3)#128x32x32 -> 3x64x64
+            #no batch normalization in last layer of generatror
+            #don't use relu for output
+        with tf.variable_scope("output"):
+            out = nn.tanh(z)
+    return out
 
-#generator function. Takes a noise value of size (?, 100) and returns a tensor of 64x64x3
-def makeGenerator(x):
-    with tf.variable_scope("generator") as scope:
-        #project and reshape from 100 to 1024x4x4
-        x = linear(x, 1024 * 4 * 4, "g_linear")
-        x = tf.reshape(x, [-1, 4, 4, 1024])#in default NHWC batch height width inchannels
-        #filter is the output shape where it doubles both width and height and halves filters
-        x = convTranspose(x, 512, True, 0)#1024 -> 512
-        x = convTranspose(x, 256, True, 1)#512 -> 256
-        x = convTranspose(x, 128, True, 2)#256 -> 128
-        #don't activate or normalize for last layer of generator
-        x = convTranspose(x, 3, False, 3)#128 -> 3 because rgb coloration is 3 
-        #finish the output with a tanh activation
-        x = tf.tanh(x)
-        return x
+#Placeholders
+#makes input into discriminator a 4d array where it is array of 3d arrays to represent images
+x = tf.placeholder(dtype=tf.float32, shape=(None, ) + imageShape, name="Images")
+#noise unkown length for unkown number of images to be made
+z = tf.placeholder(dtype=tf.float32, shape=(None, noiseLength), name="Noise")
 
-#takes a 3d array of an image and returns a value between 0 and 1  where 0 is fake and 1 is real
-def makeDiscriminator(x):
-    with tf.variable_scope("discriminator") as scope:
-        #dont normalize on first layer
-        x = conv(x, 128, False, 0)#3 -> 128
-        x = conv(x, 256, True, 1)#128 -> 256
-        x = conv(x, 512, True, 2)#256 -> 512
-        x = conv(x, 1024, True, 3)#512 -> 1024
-        x = tf.reshape(x, [-1, 1024 * 4* 4])
-        x = linear(x, 1, "d_linear")
-        return tf.sigmoid(x), x
+#Make models and set to use gpu
+#test if gpu is available
+device = ""
+if tf.test.is_gpu_available(cuda_only=True):
+    device = "/gpu:0"
+else:
+    device = "/cpu:0"
+with tf.device(device):
+    generatorSamples = generator(z)#make generator with z (noise) placeholder
+    discriminatorReal = discriminator(x)#make discriminator that takes data from the real
+    discriminatorFake = discriminator(generatorSamples)#make discriminator that takes fake data
 
+discriminatorLossReal = tf.reduce_mean(
+                           nn.sigmoid_cross_entropy_with_logits(
+                               logits=discriminatorReal, labels=tf.ones_like(discriminatorReal),
+                               name="discriminator_loss_real"
+                               #takes real input and makes the labels 1 or real because it wants to identify real data as real
+                           ) 
+                        )
 
-#takes a parameter size which is how many 100 number long noise arrays it makes
-def noise(size):
-    return tf.Variable(tf.random_normal([size, 100]), expected_shape=[size, 100])
+discriminatorLossFake = tf.reduce_mean(
+                           nn.sigmoid_cross_entropy_with_logits(
+                               logits=discriminatorFake, labels=tf.zeros_like(discriminatorFake),
+                               name="discriminator_loss_fake"
+                               #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
+                           ) 
+                        )
 
-def getRegularizerLoss(scope):
-    return tf.add_n(tf.losses.get_regularization_losses(scope=scope))
+generatorLoss = tf.reduce_mean(
+                           nn.sigmoid_cross_entropy_with_logits(
+                               logits=discriminatorFake, labels=tf.ones_like(discriminatorFake),
+                               name="generator_loss"
+                               #takes fake input and makes the labels 1 or real because generator wants to make its fake dat seem more real
+                           ) 
+                        )
 
-with tf.device("/gpu:0"):
-    z = tf.placeholder(tf.float32, shape=[None, 100], name="z")#holds noise
-    generator = makeGenerator(z)#make generator
-    images = tf.placeholder(tf.float32, shape=[None, 64, 64, 3], name="images")
-    discriminator, discriminatorLogits = makeDiscriminator(images)#make discriminator. logits aka output
-    showNoise = noise(showBatchSize)#used to show what generator has made after batchs
-#allows program to use multiple cores
+discriminatorTotalLoss = discriminatorLossReal + discriminatorLossFake
+
+tf.summary.scalar("Discriminator Loss Real", discriminatorLossReal)
+tf.summary.scalar("Discriminator Loss Fake", discriminatorLossFake)
+tf.summary.scalar("Discriminator Total Loss", discriminatorTotalLoss)
+tf.summary.scalar("Generator Loss", generatorLoss)
+merged = tf.summary.merge_all()
+
+#Optimzers
+trainableVariables = tf.trainable_variables()
+#seperate trainable variables into ones for discriminator and generator
+dTrainableVariables = [var for var in trainableVariables if "discriminator" in var.name]
+gTrainableVariables = [var for var in trainableVariables if "generator" in var.name]
+
+#build adam optimizers. paper said to use .0002
+discriminatorOptimizer = tf.train.AdamOptimizer(0.0002).minimize(discriminatorTotalLoss, var_list=dTrainableVariables)
+generatorOptimizer = tf.train.AdamOptimizer(0.0002).minimize(generatorLoss, var_list=gTrainableVariables)
+
+#Test Data. Used to show generator results
+testNoise = noise(16)
+
+#config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
 config = tf.ConfigProto(intra_op_parallelism_threads=2, inter_op_parallelism_threads=1)
-#sets up config if gpu is available
-if(tf.test.is_gpu_available):
-    config.gpu_options.allow_growth=True
 
-def makeFakeImages(sess, size):
-    fakeNoise = noise(size)
-    sess.run(fakeNoise.initializer)
-    return sess.run(generator, feed_dict={ z : fakeNoise.eval() })
-
-def train(sess, realData, fakeData, optimizer, discriminator, trainableVariables, gOptimizer, generator, gTrainableVariables):
-    """Discriminator"""
-    #reset gradients
-    reset_optimizer_op = tf.variables_initializer(optimizer.variables())
-    sess.run(reset_optimizer_op)
-    #Train on real data
-    predictionReal, predictionRealLogits = sess.run(discriminator,  feed_dict={ images : realData })
-    #Calculate Loss
-    lossReal = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=predictionRealLogits, labels=tf.ones_like(predictionReal)))
-    
-    #Train on fake data
-    predictionFake, predictionFakeLogits = sess.run(discriminator, feed_dict={ images : fakeData})
-    #Calculate Loss
-    lossFake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=predictionFakeLogits, labels=tf.zeros_like(predictionFake)))
-    
-    lossRegularizer = getRegularizerLoss("discriminator")  
-    
-    totalLoss = lossReal + lossFake + lossRegularizer
-    
-    #Backpropagate and update weights
-    optimizer.minimize(totalLoss, var_list=trainableVariables)
-    
-    """Generator""" #uses previous fake data
-    #Reset gradients
-    reset_optimizer_op = tf.variables_initializer(gOptimizer.variables())
-    sess.run(reset_optimizer_op)
-    #calculate loss
-    gLoss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=predictionFakeLogits, labels=tf.ones_like(predictionFake)))#use ones because generator wants to be real
-    
-    totalGLoss = gLoss + getRegularizerLoss("generator")
-    #backpropagate and update weights
-    gOptimizer.minimize(totalGLoss, var_list=gTrainableVariables)
-  
-    return totalLoss, totalGLoss
+#Saver for when stuff goes wrong
+saver = tf.train.Saver()
 
 with tf.Session(config=config) as sess:
-    tf.global_variables_initializer().run()
-    #get trainable variables
-    trainableVariables = tf.trainable_variables()
-    generatorTrainableVariables = [var for var in trainableVariables if "g_" in var.name]#gets the variables to train generator on
-    discriminatorTrainableVariables = [var for var in trainableVariables if "d_" in var.name]#same, but discriminator
-    #to save model when everything goes wrong
-    saver = tf.train.Saver()
-    saveDirectory = "./training"
-    """Train models"""
-    #Optimizers
-    discriminatorOptimizer = tf.train.AdamOptimizer(learning_rate=0.0002, beta1=0.5, beta2=0.999)
-    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=0.0002, beta1=0.5, beta2=0.999)
+    writer = tf.summary.FileWriter("./info", sess.graph)
+    sess.run(tf.global_variables_initializer())
+    i = 1
+    for epoch in range(numEpochs):
+        for numBatch, (realData, _) in enumerate(dataLoader):
+            
+            #Prepare the data. Since torch does it by Channels Height Width, but tensor takes Height Width Channels
+            realData = realData.permute(0, 2, 3, 1).numpy()#convert to numpy array
 
-    for epoch in range(1, numEpochs+1):
-        sess.run(iterator.initializer)
-        while True:
-            try:
-                realImages = sess.run(nextBatch)
-                realImages = [cv2.resize(img, (64, 64)) for img in realImages]
-                fakeImages = makeFakeImages(sess, len(realImages))
-                #train discriminator and generator
-                discriminatorLoss, generatorLoss = train(sess, realImages, fakeImages, discriminatorOptimizer, discriminator, discriminatorTrainableVariables, generatorOptimizer, generator, generatorTrainableVariables)
-                print("Discriminator Loss:  " + str(discriminatorLoss.eval()) + "\tGenerator Loss:  " + str(generatorLoss.eval()))
-            except tf.errors.OutOfRangeError:
-                break
-        #show images after each run
-        testImages = sess.run(generator, feed_dict={ z : showNoise.eval()})
-        fig = plt.figure()
-        for i in range(1, showBatchSize+1):
-            fig.add_subplot(4, 4, i)
-            plt.imshow((testImages[i-1] * 127.5) + 127.5)
-        plt.pause(1)
+            # #Train Discriminator. The values are none, the loss, an array of all real prediction, an array of all fake predictions
+            # _, dLoss, dRealPred, dFakePred, = sess.run([discriminatorOptimizer, discriminatorTotalLoss, discriminatorReal, discriminatorFake], 
+            #                         feed_dict={ x : realData, z : noise(batchSize) })
+            
+            # #Train Generator. The values are none and loss
+            # _, gLoss = sess.run([generatorOptimizer, generatorLoss],
+            #                     feed_dict={ z: noise(batchSize) })
+
+            _, _, summary = sess.run([discriminatorOptimizer, generatorOptimizer, merged], feed_dict={ x : realData, z : noise(batchSize) })
+            if numBatch % 10 == 0:
+                writer.add_summary(summary, i)
+                i+=1
+            # #show most recent test
+            # testImages = sess.run(generatorSamples, feed_dict={ z : testNoise })
+            # #images are height, width, rgb value
+            # testImages = denormalize(testImages)
+            # for i in range(1, len(testImages)+1):
+            #     plt.subplot(4, 4, i)
+            #     plt.imshow(testImages[i-1])
+            # plt.pause(1)
+            #Save model and data and log predictions
+            if numBatch % 100 == 0:
+                saver.save(sess, "./model/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))
+                
+    writer.close()
