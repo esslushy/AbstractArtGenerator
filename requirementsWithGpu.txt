@@ -1,3 +1,10 @@
--r requirements.txt
+pandas
+opencv-python
+#for tests
+torch
+torchvision
+#in all
+numpy
+matplotlib
 #note that tensorflow is broken as of 11/17/18 for python 3.7
 tensorflow-gpu
