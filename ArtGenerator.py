@@ -133,7 +133,6 @@ tf.summary.scalar("Discriminator Loss Real", discriminatorLossReal)
 tf.summary.scalar("Discriminator Loss Fake", discriminatorLossFake)
 tf.summary.scalar("Discriminator Total Loss", discriminatorTotalLoss)
 tf.summary.scalar("Generator Loss", generatorLoss)
-merged = tf.summary.merge_all()
 
 #Optimzers
 trainableVariables = tf.trainable_variables()
@@ -153,6 +152,10 @@ config = tf.ConfigProto(intra_op_parallelism_threads=2, inter_op_parallelism_thr
 
 #Saver for when stuff goes wrong
 saver = tf.train.Saver()
+
+#test images
+tf.summary.image("Test Images", generatorSamples, max_outputs=4)
+merged = tf.summary.merge_all()
 
 with tf.Session(config=config) as sess:
     writer = tf.summary.FileWriter("./info", sess.graph)
