@@ -79,8 +79,6 @@ def generator(z):
             #don't use relu for output
         with tf.variable_scope("output"):
             out = nn.tanh(z)
-            #output to show it off
-            tf.summary.image("Generated Images", out, max_outputs=16)
     return out
 
 #Placeholders
@@ -127,11 +125,6 @@ generatorLoss = tf.reduce_mean(
 
 discriminatorTotalLoss = discriminatorLossReal + discriminatorLossFake
 
-tf.summary.scalar("Discriminator Loss Real", discriminatorLossReal)
-tf.summary.scalar("Discriminator Loss Fake", discriminatorLossFake)
-tf.summary.scalar("Discriminator Total Loss", discriminatorTotalLoss)
-tf.summary.scalar("Generator Loss", generatorLoss)
-
 #Optimzers
 trainableVariables = tf.trainable_variables()
 #seperate trainable variables into ones for discriminator and generator
@@ -155,7 +148,6 @@ saver = tf.train.Saver()
 merged = tf.summary.merge_all()
 
 with tf.Session(config=config) as sess:
-    writer = tf.summary.FileWriter("./info", sess.graph)
     sess.run(tf.global_variables_initializer())
     i = 1
     for epoch in range(numEpochs):
@@ -164,13 +156,28 @@ with tf.Session(config=config) as sess:
             #Prepare the data. Since torch does it by Channels Height Width, but tensor takes Height Width Channels
             realData = realData.permute(0, 2, 3, 1).numpy()#convert to numpy array
 
+            #Train Discriminator. The values are none, the loss, an array of all real prediction, an array of all fake predictions
+            _, dLoss, dRealPred, dFakePred, = sess.run([discriminatorOptimizer, discriminatorTotalLoss, discriminatorReal, discriminatorFake], 
+                                    feed_dict={ x : realData, z : noise(batchSize) })
+            
+            #Train Generator. The values are none and loss
+            _, gLoss = sess.run([generatorOptimizer, generatorLoss],
+                                feed_dict={ z: noise(batchSize) })
 
+            #print losses
+            print('Epoch: [{}/{}], Batch Num: [{}/{}]'.format(epoch, numEpochs, numBatch, numBatches))
+            print('Discriminator Loss: {:.4f}, Generator Loss: {:.4f}'.format(dLoss, gLoss))
+            print('D(x): {:.4f}, D(G(z)): {:.4f}'.format(dRealPred.mean(), dFakePred.mean()))
 
-            _, _, summary = sess.run([discriminatorOptimizer, generatorOptimizer, merged], feed_dict={ x : realData, z : noise(batchSize) })
-            if numBatch % 10 == 0:
-                writer.add_summary(summary, i)
-                i+=1
+            #Save model and data and log predictions
             if numBatch % 100 == 0:
                 saver.save(sess, "./model/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))
+                #show most recent with model save move out of this if you want constant checking
+                testImages = sess.run(generatorSamples, feed_dict={ z : testNoise })
+                #images are height, width, rgb value
+                testImages = denormalize(testImages)
+                for i in range(1, len(testImages)+1):
+                    plt.subplot(4, 4, i)
+                    plt.imshow(testImages[i-1])
+                plt.pause(1)
                 
-    writer.close()
