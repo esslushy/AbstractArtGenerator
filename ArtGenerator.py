@@ -9,8 +9,6 @@ from tensorflow.contrib import layers as contribLayers
 import numpy as np
 #to show test images
 import matplotlib.pyplot as plt
-from PIL import Image
-import torch
 #personal files
 from ops import *
 
@@ -30,8 +28,6 @@ numBatches = len(dataLoader)
 imageShape = (64, 64, 3)
 noiseLength = 100
 numEpochs = 200
-#standardize randomness
-tf.set_random_seed(7)
 
 """Models"""
 #takes image x and ouputs a value between 0 and 1 where 0 is fake and 1 is real
@@ -83,6 +79,8 @@ def generator(z):
             #don't use relu for output
         with tf.variable_scope("output"):
             out = nn.tanh(z)
+            #output to show it off
+            tf.summary.image("Generated Images", out, max_outputs=16)
     return out
 
 #Placeholders
@@ -148,13 +146,12 @@ generatorOptimizer = tf.train.AdamOptimizer(0.0002).minimize(generatorLoss, var_
 testNoise = noise(16)
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
-config = tf.ConfigProto(intra_op_parallelism_threads=2, inter_op_parallelism_threads=1)
+config = tf.ConfigProto(intra_op_parallelism_threads=2, inter_op_parallelism_threads=1, log_device_placement=True)
 
 #Saver for when stuff goes wrong
 saver = tf.train.Saver()
 
-#test images
-tf.summary.image("Test Images", generatorSamples, max_outputs=4)
+#merge summaries
 merged = tf.summary.merge_all()
 
 with tf.Session(config=config) as sess:
