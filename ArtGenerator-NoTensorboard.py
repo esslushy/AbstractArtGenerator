@@ -28,25 +28,31 @@ numBatches = len(dataLoader)
 imageShape = (64, 64, 3)
 noiseLength = 100
 numEpochs = 200
+#normalize randomness
+tf.set_random_seed(7)
 
 """Models"""
+#regularizers (keeps trainign stable)
+generatorRegularizer = contribLayers.l2_regularizer(0.0001, scope="generator_regularizer")
+discriminatorRegularizer = contribLayers.l2_regularizer(0.0001, scope="discriminator_regularizer")
+
 #takes image x and ouputs a value between 0 and 1 where 0 is fake and 1 is real
 def discriminator(x):
     with tf.variable_scope("discriminator", reuse=tf.AUTO_REUSE):
         with tf.variable_scope("convolutional_layer_1"):
-            x = convolutLayer(x, 128)#3x64x64 -> 128x32x32
+            x = convolutLayer(x, 128, discriminatorRegularizer)#3x64x64 -> 128x32x32
             #don't batch normalize in first layer of discriminator
             x = nn.leaky_relu(x, alpha=0.2)
         with tf.variable_scope("convolutional_layer_2"):
-            x = convolutLayer(x, 256)#128x32x32 -> 256x16x16
+            x = convolutLayer(x, 256, discriminatorRegularizer)#128x32x32 -> 256x16x16
             x = layers.batch_normalization(x)
             x = nn.leaky_relu(x, alpha=0.2)
         with tf.variable_scope("convolutional_layer_3"):
-            x = convolutLayer(x, 512)#256x16x16 -> 512x8x8
+            x = convolutLayer(x, 512, discriminatorRegularizer)#256x16x16 -> 512x8x8
             x = layers.batch_normalization(x)
             x = nn.leaky_relu(x, alpha=0.2)
         with tf.variable_scope("convolution_layer_4"):
-            x = convolutLayer(x, 1024)#512x8x8 -> 1024x4x4
+            x = convolutLayer(x, 1024, discriminatorRegularizer)#512x8x8 -> 1024x4x4
             x = layers.batch_normalization(x)
             x = nn.leaky_relu(x, alpha=0.2)
         with tf.variable_scope("linear"):
@@ -62,23 +68,25 @@ def generator(z):
             z = contribLayers.fully_connected(z, 1024 * 4 * 4)#flatten
             z = tf.reshape(z, (-1, 4, 4, 1024))#reshape
         with tf.variable_scope("deconvolutional_layer_1"):
-            z = deconvolutLayer(z, 512)#1024x4x4 -> 512x8x8
+            z = deconvolutLayer(z, 512, discriminatorRegularizer)#1024x4x4 -> 512x8x8
             z = layers.batch_normalization(z)
             z = nn.relu(z)
         with tf.variable_scope("deconvolutional_layer_2"):
-            z = deconvolutLayer(z, 256)#512x8x8 -> 256x16x16
+            z = deconvolutLayer(z, 256, discriminatorRegularizer)#512x8x8 -> 256x16x16
             z = layers.batch_normalization(z)
             z = nn.relu(z)
         with tf.variable_scope("deconvolutional_layer_3"):
-            z = deconvolutLayer(z, 128)#256x16x16 -> 128x32x32
+            z = deconvolutLayer(z, 128, discriminatorRegularizer)#256x16x16 -> 128x32x32
             z = layers.batch_normalization(z)
             z = nn.relu(z)
         with tf.variable_scope("deconvolutional_layer_4"):
-            z = deconvolutLayer(z, 3)#128x32x32 -> 3x64x64
+            z = deconvolutLayer(z, 3, discriminatorRegularizer)#128x32x32 -> 3x64x64
             #no batch normalization in last layer of generatror
             #don't use relu for output
         with tf.variable_scope("output"):
             out = nn.tanh(z)
+            #output to show it off
+            tf.summary.image("Generated Images", out, max_outputs=16)
     return out
 
 #Placeholders
@@ -115,6 +123,8 @@ discriminatorLossFake = tf.reduce_mean(
                            ) 
                         )
 
+discriminatorRegularizerLoss = getRegularizerLoss("discriminator")
+
 generatorLoss = tf.reduce_mean(
                            nn.sigmoid_cross_entropy_with_logits(
                                logits=discriminatorFake, labels=tf.ones_like(discriminatorFake),
@@ -123,7 +133,10 @@ generatorLoss = tf.reduce_mean(
                            ) 
                         )
 
-discriminatorTotalLoss = discriminatorLossReal + discriminatorLossFake
+generatorRegularizerLoss = getRegularizerLoss("generator")
+
+discriminatorTotalLoss = discriminatorLossReal + discriminatorLossFake + discriminatorRegularizerLoss
+generatorTotalLoss = generatorLoss + generatorRegularizerLoss
 
 #Optimzers
 trainableVariables = tf.trainable_variables()
@@ -132,8 +145,9 @@ dTrainableVariables = [var for var in trainableVariables if "discriminator" in v
 gTrainableVariables = [var for var in trainableVariables if "generator" in var.name]
 
 #build adam optimizers. paper said to use .0002
+#might add ones for real and fake loss
 discriminatorOptimizer = tf.train.AdamOptimizer(0.0002).minimize(discriminatorTotalLoss, var_list=dTrainableVariables)
-generatorOptimizer = tf.train.AdamOptimizer(0.0002).minimize(generatorLoss, var_list=gTrainableVariables)
+generatorOptimizer = tf.train.AdamOptimizer(0.0002).minimize(generatorTotalLoss, var_list=gTrainableVariables)
 
 #Test Data. Used to show generator results
 testNoise = noise(16)
@@ -161,7 +175,7 @@ with tf.Session(config=config) as sess:
                                     feed_dict={ x : realData, z : noise(batchSize) })
             
             #Train Generator. The values are none and loss
-            _, gLoss = sess.run([generatorOptimizer, generatorLoss],
+            _, gLoss = sess.run([generatorOptimizer, generatorTotalLoss],
                                 feed_dict={ z: noise(batchSize) })
 
             #print losses
