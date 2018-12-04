@@ -8,7 +8,7 @@ from os import listdir
 from os.path import join, isfile
 
 #use matplotlib to read and process images
-def getImages(directory):
+def getImages(directory, name):
     images = []
     tfImages = []
     allImages = [image for image in listdir(directory) if isfile(join(directory, image))]#gets all images from images folder
@@ -19,7 +19,7 @@ def getImages(directory):
         img = ((img - 127.5) / 127.5) #normalizes and converts images to -1 -> 1 range
         images.append(img)
         tfImages.append(tf.Variable(img))
-    np.save("ImagesX64.npy", images)
+    np.save(name, images)
     return tf.data.Dataset.from_tensor_slices((tfImages))
 
 #load images from ready .npy file and cast to dataset
