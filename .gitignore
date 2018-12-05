@@ -1,8 +1,7 @@
-/dataset
-/__pycache__
-/runs
-/data
+/src/dataset
+/src/__pycache__
 /MNIST-data
-ImagesX64.npy
-/info
-/model
+/src/ImagesX64.npy
+/src/info
+/src/model
+/__pycache__
