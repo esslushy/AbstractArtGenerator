@@ -6,7 +6,6 @@ import torch
 #These imports are for the network itself
 import tensorflow as tf
 from tensorflow import nn, layers
-from tensorflow.contrib import layers as contribLayers
 import numpy as np
 #to show test images
 import matplotlib.pyplot as plt
@@ -32,10 +31,12 @@ numBatches = len(dataLoader)
 imageShape = (64, 64, 3)
 noiseLength = 100
 numEpochs = 200
+#normalize randomness
+tf.set_random_seed(7)
 
 """Models"""
 #takes image x and ouputs a value between 0 and 1 where 0 is fake and 1 is real
-def discriminator(x):
+def discriminator(x):#might be too powerful, already lowered learning rate, but might need to add dropout also
     with tf.variable_scope("discriminator", reuse=tf.AUTO_REUSE):
         with tf.variable_scope("convolutional_layer_1"):
             x = convolutLayer(x, 128)#3x64x64 -> 128x32x32
@@ -53,18 +54,18 @@ def discriminator(x):
             x = convolutLayer(x, 1024)#512x8x8 -> 1024x4x4
             x = layers.batch_normalization(x, training=True)
             x = nn.leaky_relu(x, alpha=0.2)
-        with tf.variable_scope("linear"):
-            x = contribLayers.flatten(x)#from 3d object 1024x4x4
-            logits = contribLayers.fully_connected(x, 1)#1024x4x4 to a shape of 1 to sigmoid
+        with tf.variable_scope("flatten"):
+            x = tf.reshape(x, (-1, 4, 4, 1024))#from 3d object 1024x4x4
+            logits = layers.dense(x, units=1, activation=None, kernel_initializer=tf.contrib.layers.xavier_initializer())#1024x4x4 to a shape of 1 to sigmoid
         with tf.variable_scope("output"):
-            out = nn.sigmoid(logits)
-    return out, logits #logits is needed for the loss function otherwise you double sigmoid
+            out = nn.sigmoid(x)
+    return out, logits #needed for loss function otherwise you double sigmoid
 
 def generator(z):
     with tf.variable_scope("generator"):
         with tf.variable_scope("reshape_and_flatten"):
-            z = contribLayers.fully_connected(z, 1024 * 4 * 4)#flatten
-            z = tf.reshape(z, (-1, 4, 4, 1024))#reshape
+            z = layers.dense(inputs=z, units=4*4*1024)#flatten
+            z = tf.reshape(z, (-1, 4, 4, 1024))#reshape noise 
         with tf.variable_scope("deconvolutional_layer_1"):
             z = deconvolutLayer(z, 512)#1024x4x4 -> 512x8x8
             z = layers.batch_normalization(z, training=True)
@@ -83,6 +84,8 @@ def generator(z):
             #don't use relu for output
         with tf.variable_scope("output"):
             out = nn.tanh(z)
+            #output to show it off
+            tf.summary.image("Generated Images", out, max_outputs=16)
     return out
 
 #Placeholders
@@ -94,7 +97,7 @@ z = tf.placeholder(dtype=tf.float32, shape=(None, noiseLength), name="Noise")
 #Make models and set to use gpu
 #test if gpu is available
 device = ""
-if tf.test.is_gpu_available(cuda_only=True):
+if tf.test.is_gpu_available():
     device = "/gpu:0"
 else:
     device = "/cpu:0"
@@ -129,7 +132,7 @@ generatorLoss = tf.reduce_mean(
 
 discriminatorTotalLoss = discriminatorLossReal + discriminatorLossFake
 
-#Optimzers
+#Optimzer setup
 trainableVariables = tf.trainable_variables()
 #seperate trainable variables into ones for discriminator and generator
 dTrainableVariables = [var for var in trainableVariables if "discriminator" in var.name]
@@ -140,35 +143,28 @@ with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
     discriminatorOptimizer = tf.train.AdamOptimizer(0.00015).minimize(discriminatorTotalLoss, var_list=dTrainableVariables)
     generatorOptimizer = tf.train.AdamOptimizer(0.0002).minimize(generatorLoss, var_list=gTrainableVariables)
 
-#Test Data. Used to show generator results
-testNoise = noise(16)
-
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
 config = tf.ConfigProto(intra_op_parallelism_threads=2, inter_op_parallelism_threads=1, log_device_placement=True)
+
+#Test noise
+testNoise = noise(16)
 
 #Saver for when stuff goes wrong
 saver = tf.train.Saver()
 
-#merge summaries
-merged = tf.summary.merge_all()
-
 with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
-    i = 1
     for epoch in range(numEpochs):
         for numBatch, realData in enumerate(dataLoader):
-            
-            #Prepare the data. Since torch does it by Channels Height Width, but tensor takes Height Width Channels
+
             realData = realData[0].numpy()#convert to numpy array
 
-            #Train Discriminator. The values are none, the loss, an array of all real prediction, an array of all fake predictions
-            _, dLoss, dRealPred, dFakePred, = sess.run([discriminatorOptimizer, discriminatorTotalLoss, discriminatorReal, discriminatorFake], 
-                                    feed_dict={ x : realData, z : noise(batchSize) })
-            
-            #Train Generator. The values are none and loss
-            _, gLoss = sess.run([generatorOptimizer, generatorLoss],
-                                feed_dict={ z: noise(batchSize) })
-
+            #Train Discriminator and Generator. The values are none, the loss, an array of all real prediction, an array of all fake predictions
+            #none, and generator loss
+            _, dLoss, dRealPred, dFakePred, _, gLoss = sess.run([discriminatorOptimizer, discriminatorTotalLoss, 
+                                                                discriminatorReal, discriminatorFake, generatorOptimizer, 
+                                                                generatorLoss], 
+                                                                feed_dict={ x : realData, z : noise(batchSize) })
             #print losses
             print('Epoch: [{}/{}], Batch Num: [{}/{}]'.format(epoch, numEpochs, numBatch, numBatches))
             print('Discriminator Loss: {:.4f}, Generator Loss: {:.4f}'.format(dLoss, gLoss))
