@@ -145,7 +145,7 @@ gTrainableVariables = [var for var in trainableVariables if "generator" in var.n
 
 #build adam optimizers. paper said to use .0002. discriminator a tad strong so used .0001
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-    discriminatorOptimizer = tf.train.AdamOptimizer(0.00015).minimize(discriminatorTotalLoss, var_list=dTrainableVariables)
+    discriminatorOptimizer = tf.train.AdamOptimizer(0.0001).minimize(discriminatorTotalLoss, var_list=dTrainableVariables)
     generatorOptimizer = tf.train.AdamOptimizer(0.0002).minimize(generatorLoss, var_list=gTrainableVariables)
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
