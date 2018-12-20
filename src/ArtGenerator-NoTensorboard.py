@@ -25,7 +25,7 @@ def getCustomDataset(file):
 
 """Load and Prepare Data"""
 dataset = getCustomDataset("ImagesX64.npy")
-batchSize = 100
+batchSize = 256
 dataLoader = dataloader.DataLoader(dataset, batch_size=batchSize, shuffle=True)
 numBatches = len(dataLoader)
 imageShape = (64, 64, 3)
@@ -144,7 +144,7 @@ with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
     generatorOptimizer = tf.train.AdamOptimizer(0.0002).minimize(generatorLoss, var_list=gTrainableVariables)
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
-config = tf.ConfigProto(intra_op_parallelism_threads=2, inter_op_parallelism_threads=1, log_device_placement=True)
+config = tf.ConfigProto(intra_op_parallelism_threads=2, inter_op_parallelism_threads=1, allow_soft_placement=True, log_device_placement=True)
 
 #Test noise
 testNoise = noise(16)

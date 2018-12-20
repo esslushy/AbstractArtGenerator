@@ -27,7 +27,7 @@ def getCustomDataset(file):
 
 """Load and Prepare Data"""
 dataset = getCustomDataset("ImagesX64.npy")
-batchSize = 100
+batchSize = 256
 dataLoader = dataloader.DataLoader(dataset, batch_size=batchSize, shuffle=True)
 numBatches = len(dataLoader)
 imageShape = (64, 64, 3)
