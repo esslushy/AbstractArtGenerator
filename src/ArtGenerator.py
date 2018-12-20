@@ -8,6 +8,8 @@ import tensorflow as tf
 from tensorflow import nn, layers
 import numpy as np
 #to show test images
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 #personal files
 from ops import *
@@ -149,7 +151,7 @@ with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
     generatorOptimizer = tf.train.AdamOptimizer(0.0002).minimize(generatorLoss, var_list=gTrainableVariables)
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
-config = tf.ConfigProto(intra_op_parallelism_threads=2, inter_op_parallelism_threads=1, log_device_placement=True)
+config = tf.ConfigProto(intra_op_parallelism_threads=2, inter_op_parallelism_threads=1, allow_soft_placement=True, log_device_placement=True)
 
 #Saver for when stuff goes wrong
 saver = tf.train.Saver()
@@ -160,6 +162,7 @@ merged = tf.summary.merge_all()
 with tf.Session(config=config) as sess:
     writer = tf.summary.FileWriter("./info", sess.graph)
     sess.run(tf.global_variables_initializer())
+    print("Starting Session")
     i = 1
     for epoch in range(numEpochs):
         for numBatch, realData in enumerate(dataLoader):

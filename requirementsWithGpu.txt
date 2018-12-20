@@ -1,10 +1,12 @@
 pandas
 opencv-python
 #for tests
-torch
+#torch broken on windows install commented line below instead
+https://download.pytorch.org/whl/cu100/torch-1.0.0-cp36-cp36m-win_amd64.whl
+#torch
 torchvision
 #in all
 numpy
 matplotlib
 #note that tensorflow is broken as of 11/17/18 for python 3.7
-tensorflow-gpu
+tf-nightly-gpu
