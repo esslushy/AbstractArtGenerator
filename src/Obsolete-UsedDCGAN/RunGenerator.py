@@ -1,7 +1,6 @@
 from ops import *
 import tensorflow as tf
 from tensorflow import nn, layers
-import matplotlib.pyplot as plt
 
 """Models"""
 #takes image x and ouputs a value between 0 and 1 where 0 is fake and 1 is real
@@ -73,6 +72,6 @@ with tf.device("/cpu:0"):
 reloader = tf.train.Saver()
 
 with tf.Session() as sess:
-    reloader.restore(sess, "./model/DCGAN_Epoch_%s_Batch_%s.ckpt" % (3, 700))
-    plt.imshow(denormalize(sess.run(generatorSamples, feed_dict={ z: noise(1) })[0]))
-    plt.show()
+    reloader.restore(sess, "./model/1st_Finished_Set/DCGAN_Epoch_%s_Batch_%s.ckpt" % (199, 900))
+    writer = tf.summary.FileWriter("./FinalImages", sess.graph)
+    
