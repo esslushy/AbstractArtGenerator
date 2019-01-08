@@ -41,19 +41,19 @@ tf.set_random_seed(7)
 def discriminator(x):#might be too powerful, already lowered learning rate, but might need to add dropout also
     with tf.variable_scope("discriminator", reuse=tf.AUTO_REUSE):
         with tf.variable_scope("convolutional_layer_1"):
-            x = convolutLayer(x, 128)#3x64x64 -> 128x32x32
+            x = resizeConvolutLayer(x, 128, 32)#3x64x64 -> 128x32x32
             #don't batch normalize in first layer of discriminator
             x = nn.leaky_relu(x, alpha=0.2)
         with tf.variable_scope("convolutional_layer_2"):
-            x = convolutLayer(x, 256)#128x32x32 -> 256x16x16
+            x = resizeConvolutLayer(x, 256, 16)#128x32x32 -> 256x16x16
             x = layers.batch_normalization(x, training=True)
             x = nn.leaky_relu(x, alpha=0.2)
         with tf.variable_scope("convolutional_layer_3"):
-            x = convolutLayer(x, 512)#256x16x16 -> 512x8x8
+            x = resizeConvolutLayer(x, 512, 8)#256x16x16 -> 512x8x8
             x = layers.batch_normalization(x, training=True)
             x = nn.leaky_relu(x, alpha=0.2)
         with tf.variable_scope("convolution_layer_4"):
-            x = convolutLayer(x, 1024)#512x8x8 -> 1024x4x4
+            x = resizeConvolutLayer(x, 1024, 4)#512x8x8 -> 1024x4x4
             x = layers.batch_normalization(x, training=True)
             x = nn.leaky_relu(x, alpha=0.2)
         with tf.variable_scope("flatten"):
@@ -69,19 +69,19 @@ def generator(z):
             z = layers.dense(inputs=z, units=4*4*1024)#flatten
             z = tf.reshape(z, (-1, 4, 4, 1024))#reshape noise 
         with tf.variable_scope("deconvolutional_layer_1"):
-            z = deconvolutLayer(z, 512)#1024x4x4 -> 512x8x8
+            z = resizeConvolutLayer(z, 512, 8)#1024x4x4 -> 512x8x8
             z = layers.batch_normalization(z, training=True)
             z = nn.relu(z)
         with tf.variable_scope("deconvolutional_layer_2"):
-            z = deconvolutLayer(z, 256)#512x8x8 -> 256x16x16
+            z = resizeConvolutLayer(z, 256, 16)#512x8x8 -> 256x16x16
             z = layers.batch_normalization(z, training=True)
             z = nn.relu(z)
         with tf.variable_scope("deconvolutional_layer_3"):
-            z = deconvolutLayer(z, 128)#256x16x16 -> 128x32x32
+            z = resizeConvolutLayer(z, 128, 32)#256x16x16 -> 128x32x32
             z = layers.batch_normalization(z, training=True)
             z = nn.relu(z)
         with tf.variable_scope("deconvolutional_layer_4"):
-            z = deconvolutLayer(z, 3)#128x32x32 -> 3x64x64
+            z = resizeConvolutLayer(z, 3, 64)#128x32x32 -> 3x64x64
             #no batch normalization in last layer of generatror
             #don't use relu for output
         with tf.variable_scope("output"):

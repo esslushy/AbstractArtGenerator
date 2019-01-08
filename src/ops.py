@@ -29,16 +29,12 @@ def loadImages(file):
     arr = np.load(file)
     return arr
 
-def convolutLayer(inputs, outputShape):
-    return layers.conv2d(inputs=inputs, filters=outputShape, kernel_size=4, strides=(2, 2), padding="same",
+def resizeConvolutLayer(inputs, outputShape, size):
+    inputs = tf.image.resize_image_with_pad(inputs, size, size)
+    return layers.conv2d(inputs=inputs, filters=outputShape, kernel_size=4, strides=(1, 1), padding="same",
                             data_format="channels_last", use_bias=True, bias_initializer=tf.constant_initializer(0),
                             kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-def deconvolutLayer(inputs, outputShape):
-    return layers.conv2d_transpose(inputs=inputs, filters=outputShape, kernel_size=4, strides=(2,2), 
-                                    padding="same", data_format="channels_last", use_bias=True,
-                                    bias_initializer=tf.constant_initializer(0),
-                                    kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 def noise(size):
     return np.random.normal(size=(size, 100))#noise is always 100 long
