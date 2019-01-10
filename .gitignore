@@ -7,3 +7,6 @@
 /__pycache__
 /src/infoCifar
 /src/modelCifar
+/src/model256
+/src/ImagesX256.npy
+/src/info256

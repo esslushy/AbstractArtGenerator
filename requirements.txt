@@ -7,3 +7,4 @@ torchvision
 numpy
 matplotlib
 tensorflow
+pillow

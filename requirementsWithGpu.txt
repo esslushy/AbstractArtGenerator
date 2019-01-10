@@ -10,3 +10,4 @@ numpy
 matplotlib
 #note that tensorflow is broken as of 11/17/18 for python 3.7
 tf-nightly-gpu
+pillow
