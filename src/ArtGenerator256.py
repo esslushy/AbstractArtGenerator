@@ -9,7 +9,6 @@ from tensorflow import nn, layers
 import numpy as np
 #personal files
 from ops import *
-getImages("F:\ReadyImagesForArtGenerator", "./ImagesX256.npy")
 def getCifarDataset():
     compose = transforms.Compose([
         transforms.Resize(64), 
@@ -22,15 +21,17 @@ def getCustomDataset(file):
     return TensorDataset(torch.from_numpy(loadImages(file)))
 
 """Load and Prepare Data"""
-dataset = getCustomDataset("./ImagesX256.npy")
-batchSize = 256
-dataLoader = dataloader.DataLoader(dataset, batch_size=batchSize, shuffle=True)
-numBatches = len(dataLoader)
-imageShape = (64, 64, 3)
+batchSize = 100
 noiseLength = 100
 numEpochs = 200
 #normalize randomness
 tf.set_random_seed(7)
+
+#make dataset loader since dataset split into multiple parts, you need to load different versions
+def loadDataset(file):
+    dataset = getCustomDataset(file)#gets data
+    dataLoader = dataloader.DataLoader(dataset, batch_size=batchSize, shuffle=True)#splits it into batches
+    return dataLoader
 
 """Models"""
 #takes image x and ouputs a value between 0 and 1 where 0 is fake and 1 is real
@@ -88,7 +89,7 @@ def generator(z):
 
 #Placeholders
 #makes input into discriminator a 4d array where it is array of 3d arrays to represent images
-x = tf.placeholder(dtype=tf.float32, shape=(None, ) + imageShape, name="Images")
+x = tf.placeholder(dtype=tf.float32, shape=(None, 256, 256, 3), name="Images")
 #noise unkown length for unkown number of images to be made
 z = tf.placeholder(dtype=tf.float32, shape=(None, noiseLength), name="Noise")
 
@@ -160,16 +161,18 @@ with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
     print("Starting Session")
     i = 1
-    for epoch in range(numEpochs):
-        for numBatch, realData in enumerate(dataLoader):
+    for i in range(5):#counts up to go through all 5 dataset parts
+        dataloader = loadDataset("ImagesX256" + str(i) + ".npy")
+        for epoch in range(numEpochs):
+            for numBatch, realData in enumerate(dataLoader):
 
-            realData = realData[0].numpy() #turns them into numpy and sticks them into another array
-            
-            _, _, summary = sess.run([discriminatorOptimizer, generatorOptimizer, merged], feed_dict={ x : realData, z : noise(batchSize) })
-            if numBatch % 10 == 0:
-                writer.add_summary(summary, i)
-                i+=1
-            if numBatch % 100 == 0:
-                saver.save(sess, "./model256/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))
+                realData = realData[0].numpy() #turns them into numpy and sticks them into another array
                 
+                _, _, summary = sess.run([discriminatorOptimizer, generatorOptimizer, merged], feed_dict={ x : realData, z : noise(batchSize) })
+                if numBatch % 10 == 0:
+                    writer.add_summary(summary, i)
+                    i+=1
+                if numBatch % 100 == 0:
+                    saver.save(sess, "./model256/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))
+                    
     writer.close()
