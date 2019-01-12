@@ -43,9 +43,9 @@ def resizeConvolutLayer(inputs, outputShape, size):
                             kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 
-def noise(size):
-    return np.random.normal(size=(size, 100))#noise is always 100 long
-
+def noise(size, length):
+    return np.random.normal(size=(size, length))
+    
 def denormalize(images):
     #change to 0 -> 1 ((x + currentMin) / (currentMax - currentMin)) * (newMax - newMin) + newMin
     images = (images+1) / 2
