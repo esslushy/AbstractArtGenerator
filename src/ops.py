@@ -37,6 +37,16 @@ def resizeConvolutLayer(inputs, outputShape, size):
                             data_format="channels_last", use_bias=True, bias_initializer=tf.constant_initializer(0),
                             kernel_initializer=tf.contrib.layers.xavier_initializer())
 
+def convolutLayer(inputs, outputShape, stride=(2,2)):
+    return layers.conv2d(inputs=inputs, filters=outputShape, kernel_size=4, strides=stride, padding="same",
+                            data_format="channels_last", use_bias=True, bias_initializer=tf.constant_initializer(0),
+                            kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+def deconvolutLayer(inputs, outputShape, stride=(2,2)):
+    return layers.conv2d_transpose(inputs=inputs, filters=outputShape, kernel_size=4, strides=stride, 
+                                    padding="same", data_format="channels_last", use_bias=True,
+                                    bias_initializer=tf.constant_initializer(0),
+                                    kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 def noise(size):
     return np.random.normal(size=(size, 100))#noise is always 100 long
