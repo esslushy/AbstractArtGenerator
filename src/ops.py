@@ -13,18 +13,23 @@ np.random.seed(7)
 #use matplotlib to read and process images
 def getImages(directory, name):
     images = []
+    i=0
     allImages = [image for image in listdir(directory) if isfile(join(directory, image))]#gets all images from images folder
-    for imageDir in allImages:
+    for num, imageDir in enumerate(allImages):
         if (imageDir[:2] == "._"):#sometimes the listdir will pick up meta data thats not needed
             continue
         img = Image.open(join(directory, imageDir))
         img = np.array(img)
-        img = img.astype('float')
+        img = img.astype('float32')
         #normalizes and converts images to -1 -> 1 range
         np.subtract(img, np.array(127.5), out=img)
         np.divide(img, np.array(127.5), out=img)
         images.append(img)
-    np.save(name, images)
+        if((num%20000)==0 and num != 0):
+            np.save(name+str(i), images)
+            images = []
+            i+=1
+    np.save(name+str(i), images)#save final set of images
 
 #load images from ready .npy file and cast to dataset
 def loadImages(file):
@@ -48,9 +53,9 @@ def deconvolutLayer(inputs, outputShape, stride=(2,2)):
                                     bias_initializer=tf.constant_initializer(0),
                                     kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-def noise(size):
-    return np.random.normal(size=(size, 100))#noise is always 100 long
-
+def noise(size, length):
+    return np.random.normal(size=(size, length))
+    
 def denormalize(images):
     #change to 0 -> 1 ((x + currentMin) / (currentMax - currentMin)) * (newMax - newMin) + newMin
     images = (images+1) / 2

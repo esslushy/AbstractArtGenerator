@@ -27,12 +27,12 @@ def getCustomDataset(file):
 
 """Load and Prepare Data"""
 dataset = getCustomDataset("ImagesX64.npy")
-batchSize = 256
+batchSize = 100
 dataLoader = dataloader.DataLoader(dataset, batch_size=batchSize, shuffle=True)
 numBatches = len(dataLoader)
 imageShape = (64, 64, 3)
 noiseLength = 100
-numEpochs = 200
+numEpochs = 300
 #normalize randomness
 tf.set_random_seed(7)
 
@@ -169,7 +169,7 @@ with tf.Session(config=config) as sess:
 
             realData = realData[0].numpy() #turns them into numpy and sticks them into another array
             
-            _, _, summary = sess.run([discriminatorOptimizer, generatorOptimizer, merged], feed_dict={ x : realData, z : noise(batchSize) })
+            _, _, summary = sess.run([discriminatorOptimizer, generatorOptimizer, merged], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
             if numBatch % 10 == 0:
                 writer.add_summary(summary, i)
                 i+=1
