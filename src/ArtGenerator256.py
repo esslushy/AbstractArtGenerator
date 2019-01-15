@@ -21,7 +21,7 @@ def getCustomDataset(file):
     return TensorDataset(torch.from_numpy(loadImages(file)))
 
 """Load and Prepare Data"""
-batchSize = 100
+batchSize = 5
 noiseLength = 400#4 times as many inputs 1024 vs 4096 for generator so 4 times as much noise
 numEpochs = 200
 #normalize randomness
@@ -37,15 +37,15 @@ def loadDataset(file):
 #takes image x and ouputs a value between 0 and 1 where 0 is fake and 1 is real
 def discriminator(x):#might be too powerful, already lowered learning rate, but might need to add dropout also
     with tf.variable_scope("discriminator", reuse=tf.AUTO_REUSE):
-        with tf.variable_scope("resize_convolutional_layer_1"):
+        with tf.variable_scope("resize_convolutional_layer_0"):
             x = resizeConvolutLayer(x, 128, 32)#3x256x256 -> 128x128x128
             #don't batch normalize in first layer of discriminator
             x = nn.leaky_relu(x, alpha=0.2)
-        with tf.variable_scope("resize_convolutional_layer_2"):
+        with tf.variable_scope("resize_convolutional_layer_1"):
             x = resizeConvolutLayer(x, 256, 64)#128x228x128 -> 256x64x64
             x = layers.batch_normalization(x, training=True)
             x = nn.leaky_relu(x, alpha=0.2)
-        with tf.variable_scope("resize_convolutional_layer_3"):
+        with tf.variable_scope("resize_convolutional_layer_2"):
             x = resizeConvolutLayer(x, 512, 32)#256x64x64 -> 512x32x32
             x = layers.batch_normalization(x, training=True)
             x = nn.leaky_relu(x, alpha=0.2)
@@ -53,11 +53,11 @@ def discriminator(x):#might be too powerful, already lowered learning rate, but 
             x = resizeConvolutLayer(x, 1024, 16)#512x32x32 -> 1024x16x16
             x = layers.batch_normalization(x, training=True)
             x = nn.leaky_relu(x, alpha=0.2)
-        with tf.variable_scope("resize_convolutional_layer_3"):
+        with tf.variable_scope("resize_convolutional_layer_4"):
             x = resizeConvolutLayer(x, 2048, 8)#1024x16x16 -> 2048x8x8
             x = layers.batch_normalization(x, training=True)
             x = nn.leaky_relu(x, alpha=0.2)
-        with tf.variable_scope("resize_convolution_layer_4"):
+        with tf.variable_scope("resize_convolution_layer_5"):
             x = resizeConvolutLayer(x, 4096, 4)#2048x8x8 -> 4096x4x4
             x = layers.batch_normalization(x, training=True)
             x = nn.leaky_relu(x, alpha=0.2)
@@ -157,10 +157,10 @@ trainableVariables = tf.trainable_variables()
 dTrainableVariables = [var for var in trainableVariables if "discriminator" in var.name]
 gTrainableVariables = [var for var in trainableVariables if "generator" in var.name]
 
-#build adam optimizers. paper said to use .0002. discriminator a tad strong so used .0001
+#low batch size so higher learning rate
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-    discriminatorOptimizer = tf.train.AdamOptimizer(0.0002).minimize(discriminatorTotalLoss, var_list=dTrainableVariables)
-    generatorOptimizer = tf.train.AdamOptimizer(0.0002).minimize(generatorLoss, var_list=gTrainableVariables)
+    discriminatorOptimizer = tf.train.AdamOptimizer(0.002).minimize(discriminatorTotalLoss, var_list=dTrainableVariables)
+    generatorOptimizer = tf.train.AdamOptimizer(0.002).minimize(generatorLoss, var_list=gTrainableVariables)
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
 config = tf.ConfigProto(intra_op_parallelism_threads=3, inter_op_parallelism_threads=3, allow_soft_placement=True)
@@ -183,7 +183,7 @@ with tf.Session(config=config) as sess:
 
                 realData = realData[0].numpy() #turns them into numpy and sticks them into another array
                 
-                _, _, summary = sess.run([discriminatorOptimizer, generatorOptimizer, merged], feed_dict={ x : realData, z : noise(batchSize) })
+                _, _, summary = sess.run([discriminatorOptimizer, generatorOptimizer, merged], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
                 if numBatch % 10 == 0:
                     writer.add_summary(summary, i)
                     i+=1

@@ -27,12 +27,12 @@ def getCustomDataset(file):
 
 """Load and Prepare Data"""
 dataset = getCustomDataset("ImagesX64.npy")
-batchSize = 256
+batchSize = 100
 dataLoader = dataloader.DataLoader(dataset, batch_size=batchSize, shuffle=True)
 numBatches = len(dataLoader)
 imageShape = (64, 64, 3)
 noiseLength = 100
-numEpochs = 200
+numEpochs = 300
 #normalize randomness
 tf.set_random_seed(7)
 
