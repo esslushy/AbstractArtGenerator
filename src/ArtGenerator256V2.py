@@ -130,7 +130,7 @@ def generator(z):
 
 #Placeholders
 #makes input into discriminator a 4d array where it is array of 3d arrays to represent images
-x = tf.placeholder(dtype=tf.float32, shape=(None, 256, 256, 3) + imageShape, name="Images")
+x = tf.placeholder(dtype=tf.float32, shape=(None, 256, 256, 3), name="Images")
 #noise unkown length for unkown number of images to be made
 z = tf.placeholder(dtype=tf.float32, shape=(None, noiseLength), name="Noise")
 
