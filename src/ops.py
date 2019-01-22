@@ -36,6 +36,9 @@ def loadImages(file):
     arr = np.load(file)
     return arr
 
+def loadMemMap(file):
+    return np.memmap(file, dtype='float32', mode='r', shape=(93973, 256, 256, 3))
+
 def resizeConvolutLayer(inputs, outputShape, size):
     inputs = tf.image.resize_image_with_pad(inputs, size, size)
     return layers.conv2d(inputs=inputs, filters=outputShape, kernel_size=4, strides=(1, 1), padding="same",
