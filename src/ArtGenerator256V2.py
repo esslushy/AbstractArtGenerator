@@ -9,7 +9,7 @@ from tensorflow import nn, layers
 import numpy as np
 #personal files
 from ops import *
-getImages("F:\ReadyImagesForArtGenerator", "./ImagesX256.npy")
+
 def getCifarDataset():
     compose = transforms.Compose([
         transforms.Resize(64), 
@@ -19,13 +19,13 @@ def getCifarDataset():
     return datasets.CIFAR10(root="./dataset", train=True, transform=compose, download=True)
 
 def getCustomDataset(file):
-    return TensorDataset(torch.from_numpy(loadImages(file)))
+    return TensorDataset(torch.from_numpy(loadMemMap(file)))
 
 """Load and Prepare Data"""
-batchSize = 100
+batchSize = 40
 noiseLength = 100
 numEpochs = 200
-#normalize randomness
+#standardize randomness
 tf.set_random_seed(7)
 
 #make dataset loader since dataset split into multiple parts, you need to load different versions
@@ -40,7 +40,7 @@ def discriminator(x):#might be too powerful, already lowered learning rate, but 
     with tf.variable_scope("discriminator", reuse=tf.AUTO_REUSE):
         with tf.variable_scope("convolutional_layer_1"):
             x = convolutLayer(x, 4, (1,1))#3x256x256 -> 4x256x256
-            #no batch norm in first layer of discriminator
+            x = layers.batch_normalization(x, training=True)
             x = nn.leaky_relu(x, alpha=0.2)
         with tf.variable_scope("convolutional_layer_2"):
             x = convolutLayer(x, 8, (1,1))#4x256x256 -> 8x256x256
@@ -125,7 +125,7 @@ def generator(z):
         with tf.variable_scope("output"):
             out = nn.tanh(z)
             #output to show it off
-            tf.summary.image("Generated Images", out, max_outputs=8)
+            tf.summary.image("Generated Images", out, max_outputs=16)
     return out
 
 #Placeholders
@@ -185,11 +185,11 @@ gTrainableVariables = [var for var in trainableVariables if "generator" in var.n
 
 #build adam optimizers. paper said to use .0002. discriminator a tad strong so used .0001
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-    discriminatorOptimizer = tf.train.AdamOptimizer(0.0001).minimize(discriminatorTotalLoss, var_list=dTrainableVariables)
-    generatorOptimizer = tf.train.AdamOptimizer(0.0002).minimize(generatorLoss, var_list=gTrainableVariables)
+    discriminatorOptimizer = tf.train.AdamOptimizer(0.001).minimize(discriminatorTotalLoss, var_list=dTrainableVariables)
+    generatorOptimizer = tf.train.AdamOptimizer(0.002).minimize(generatorLoss, var_list=gTrainableVariables)
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
-config = tf.ConfigProto(intra_op_parallelism_threads=2, inter_op_parallelism_threads=1, allow_soft_placement=True)
+config = tf.ConfigProto(intra_op_parallelism_threads=3, inter_op_parallelism_threads=3, allow_soft_placement=True)
 
 #Saver for when stuff goes wrong
 saver = tf.train.Saver()
@@ -202,19 +202,18 @@ with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
     print("Starting Session")
     i = 1
-    for i in range(5):#counts up to go through all 5 dataset parts
-        dataLoader = loadDataset("ImagesX256" + str(i) + ".npy")
-        for epoch in range(numEpochs):
-            for numBatch, realData in enumerate(dataLoader):
+    dataLoader = loadDataset("ImagesX256.npy")
+    for epoch in range(numEpochs):
+        for numBatch, realData in enumerate(dataLoader):
 
-                realData = realData[0].numpy() #turns them into numpy and sticks them into another array
+            realData = realData[0].numpy() #turns them into numpy and sticks them into another array
                 
-                _, _, summary = sess.run([discriminatorOptimizer, generatorOptimizer, merged], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
-                if numBatch % 10 == 0:
-                    writer.add_summary(summary, i)
-                    i+=1
-                if numBatch % 100 == 0:
-                    saver.save(sess, "./model256/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))
+            _, _, summary = sess.run([discriminatorOptimizer, generatorOptimizer, merged], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
+            if numBatch % 10 == 0:
+                writer.add_summary(summary, i)
+                i+=1
+            if numBatch % 100 == 0:
+                saver.save(sess, "./model256/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))
                     
     writer.close()
 

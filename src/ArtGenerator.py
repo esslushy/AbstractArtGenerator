@@ -7,10 +7,6 @@ import torch
 import tensorflow as tf
 from tensorflow import nn, layers
 import numpy as np
-#to show test images
-import matplotlib
-matplotlib.use('agg')
-import matplotlib.pyplot as plt
 #personal files
 from ops import resizeConvolutLayer, loadImages, noise
 
