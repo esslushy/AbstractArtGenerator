@@ -211,5 +211,6 @@ with tf.Session(config=config) as sess:
                 i+=1
             if numBatch % 100 == 0:
                 saver.save(sess, "./model/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))
-                
+    saver.save(sess, "./model/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))
+          
     writer.close()
