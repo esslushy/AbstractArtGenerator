@@ -170,6 +170,8 @@ generatorLoss = tf.reduce_mean(
                            ) 
                         )
 
+#regulator losses
+
 discriminatorTotalLoss = discriminatorLossReal + discriminatorLossFake
 
 tf.summary.scalar("Discriminator Loss Real", discriminatorLossReal)
