@@ -171,9 +171,14 @@ generatorLoss = tf.reduce_mean(
                         )
 
 #regulator losses
+discriminatorRegulatorLoss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES, scope="discriminator")
+generatorRegulatorLoss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES, scope="generator")
 
-discriminatorTotalLoss = discriminatorLossReal + discriminatorLossFake
+#add up all the losses
+discriminatorTotalLoss = discriminatorLossReal + discriminatorLossFake + discriminatorRegulatorLoss
+generatorTotalLoss = generatorLoss + generatorRegulatorLoss
 
+#write losses to tensorboard
 tf.summary.scalar("Discriminator Loss Real", discriminatorLossReal)
 tf.summary.scalar("Discriminator Loss Fake", discriminatorLossFake)
 tf.summary.scalar("Discriminator Total Loss", discriminatorTotalLoss)
