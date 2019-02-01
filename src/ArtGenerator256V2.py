@@ -27,6 +27,8 @@ noiseLength = 100
 numEpochs = 200
 #standardize randomness
 tf.set_random_seed(7)
+#set global step
+globalStep = 1
 
 #make dataset loader since dataset split into multiple parts, you need to load different versions
 def loadDataset(file):
@@ -190,10 +192,12 @@ trainableVariables = tf.trainable_variables()
 dTrainableVariables = [var for var in trainableVariables if "discriminator" in var.name]
 gTrainableVariables = [var for var in trainableVariables if "generator" in var.name]
 
-#build adam optimizers. paper said to use .0002. discriminator a tad strong so used .0001
+#build adam optimizers. paper said to use .0002. discriminator a tad strong so used .0001. 256 version used smaller numbers b/c smaller batch
+learningRate = tf.train.exponential_decay(.002, globalStep,
+                                           1000, 0.96, staircase=True)#decays learning rate b .96 every 100k steps
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-    discriminatorOptimizer = tf.train.AdamOptimizer(0.001).minimize(discriminatorTotalLoss, var_list=dTrainableVariables)
-    generatorOptimizer = tf.train.AdamOptimizer(0.002).minimize(generatorLoss, var_list=gTrainableVariables)
+    discriminatorOptimizer = tf.train.AdamOptimizer(learningRate).minimize(discriminatorTotalLoss, var_list=dTrainableVariables)
+    generatorOptimizer = tf.train.AdamOptimizer(learningRate).minimize(generatorLoss, var_list=gTrainableVariables)
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
 config = tf.ConfigProto(intra_op_parallelism_threads=3, inter_op_parallelism_threads=3, allow_soft_placement=True)
@@ -208,7 +212,6 @@ with tf.Session(config=config) as sess:
     writer = tf.summary.FileWriter("./info256", sess.graph)
     sess.run(tf.global_variables_initializer())
     print("Starting Session")
-    i = 1
     dataLoader = loadDataset("ImagesX256.npy")
     for epoch in range(numEpochs):
         for numBatch, realData in enumerate(dataLoader):
@@ -217,8 +220,8 @@ with tf.Session(config=config) as sess:
                 
             _, _, summary = sess.run([discriminatorOptimizer, generatorOptimizer, merged], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
             if numBatch % 10 == 0:
-                writer.add_summary(summary, i)
-                i+=1
+                writer.add_summary(summary, globalStep)
+                globalStep+=1
             if numBatch % 100 == 0:
                 saver.save(sess, "./model256/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))
     saver.save(sess, "./model256/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))          
