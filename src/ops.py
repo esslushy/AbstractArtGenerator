@@ -48,15 +48,13 @@ def resizeConvolutLayer(inputs, outputShape, size):
 def convolutLayer(inputs, outputShape, stride=(2,2)):
     return layers.conv2d(inputs=inputs, filters=outputShape, kernel_size=4, strides=stride, padding="same",
                             data_format="channels_last", use_bias=True, bias_initializer=tf.constant_initializer(0),
-                            kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                            kernel_regularizer=tf.contrib.layers.l2_regularizer(.01))
-
+                            kernel_initializer=tf.contrib.layers.xavier_initializer())
+                            
 def deconvolutLayer(inputs, outputShape, stride=(2,2)):
     return layers.conv2d_transpose(inputs=inputs, filters=outputShape, kernel_size=4, strides=stride, 
                                     padding="same", data_format="channels_last", use_bias=True,
                                     bias_initializer=tf.constant_initializer(0),
-                                    kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                    kernel_regularizer=tf.contrib.layers.l2_regularizer(.01))
+                                    kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 def noise(size, length):
     return np.random.normal(size=(size, length))
