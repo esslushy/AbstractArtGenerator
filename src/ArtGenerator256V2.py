@@ -173,8 +173,8 @@ generatorLoss = tf.reduce_mean(
                         )
 
 #regulator losses
-discriminatorRegulatorLoss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES, scope="discriminator")
-generatorRegulatorLoss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES, scope="generator")
+discriminatorRegulatorLoss = tf.reduce_mean(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES, scope="discriminator"))
+generatorRegulatorLoss = tf.reduce_mean(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES, scope="generator"))
 
 #add up all the losses
 discriminatorTotalLoss = discriminatorLossReal + discriminatorLossFake + discriminatorRegulatorLoss
@@ -183,8 +183,11 @@ generatorTotalLoss = generatorLoss + generatorRegulatorLoss
 #write losses to tensorboard
 tf.summary.scalar("Discriminator Loss Real", discriminatorLossReal)
 tf.summary.scalar("Discriminator Loss Fake", discriminatorLossFake)
+tf.summary.scalar("Discriminator Regulator Loss", discriminatorRegulatorLoss)
 tf.summary.scalar("Discriminator Total Loss", discriminatorTotalLoss)
 tf.summary.scalar("Generator Loss", generatorLoss)
+tf.summary.scalar("Generator Regulator Loss", generatorRegulatorLoss)
+tf.summary.scalar("Generator Total Loss", generatorTotalLoss)
 
 #Optimzer setup
 trainableVariables = tf.trainable_variables()
