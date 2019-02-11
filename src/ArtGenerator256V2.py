@@ -189,11 +189,11 @@ dTrainableVariables = [var for var in trainableVariables if "discriminator" in v
 gTrainableVariables = [var for var in trainableVariables if "generator" in var.name]
 
 #build adam optimizers. paper said to use .0002. discriminator a tad strong so used .0001. 256 version used smaller numbers b/c smaller batch
-learningRate = tf.train.exponential_decay(.002, globalStep,
+learningRate = tf.train.exponential_decay(.001, globalStep,
                                            1000, 0.96, staircase=True)#decays learning rate b .96 every 100k steps
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
     discriminatorOptimizer = tf.train.AdamOptimizer(learningRate).minimize(discriminatorTotalLoss, var_list=dTrainableVariables)
-    generatorOptimizer = tf.train.AdamOptimizer(learningRate).minimize(generatorLoss, var_list=gTrainableVariables)
+    generatorOptimizer = tf.train.AdamOptimizer(.002).minimize(generatorLoss, var_list=gTrainableVariables)
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
 config = tf.ConfigProto(intra_op_parallelism_threads=3, inter_op_parallelism_threads=3, allow_soft_placement=True)

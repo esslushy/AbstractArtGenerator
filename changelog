@@ -1,0 +1,4 @@
+Quite a bit changed from my original project. First off the structure changed to being an array of 100 reshaped into 1024x4x4
+and then convoluted multiple times until it reached 16x256x256 and then it passed through 1x1 convolutional layers until it reached
+3x256x256 for my images. The discriminator is still the reverse of the generator as shown above. The generator has a constant
+learning rate of .002 while the discriminatorhas a decaying learning rate from .001.
