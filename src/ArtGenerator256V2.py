@@ -23,7 +23,7 @@ def getCustomDataset(file):
     return TensorDataset(torch.from_numpy(loadMemMap(file)))
 
 """Load and Prepare Data"""
-batchSize = 10
+batchSize = 1
 noiseLength = 100
 numEpochs = 150
 #standardize randomness
@@ -178,12 +178,13 @@ with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
     discriminatorOps = Adam(lr=learningRate, beta_1=0.5, epsilon=1e-8)
     updates = discriminatorOps.get_updates(discriminatorLoss, dTrainableVariables)
     discriminatorOptimizer = tf.group(*updates, name="Discriminator_Train_Ops")
-    #unrolled loss
-    updateDict = extractUpdateDict(updates)
-    currentUpdateDict = updateDict
-    for i in range(2):
-        currentUpdateDict = tf.contrib.graph_editor.graph_replace(updateDict, currentUpdateDict)
-    unrolledLoss = tf.contrib.graph_editor.graph_replace(discriminatorLoss, currentUpdateDict)
+#unrolled loss
+updateDict = extractUpdateDict(updates)
+currentUpdateDict = updateDict
+for i in range(3):
+    currentUpdateDict = tf.contrib.graph_editor.graph_replace(updateDict, currentUpdateDict)
+unrolledLoss = tf.contrib.graph_editor.graph_replace(discriminatorLoss, currentUpdateDict)
+with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
     #train generator on unrolled loss
     generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(-unrolledLoss, var_list=gTrainableVariables)#epsilon is already the same
 

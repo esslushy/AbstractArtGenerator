@@ -21,7 +21,7 @@ def getCifarDataset():
 def getCustomDataset(file):
     return TensorDataset(torch.from_numpy(loadImages(file)))
 
-"""Load and Prepare Data"""
+#Load and Prepare Data
 dataset = getCustomDataset("ImagesX64.npy")
 batchSize = 100
 dataLoader = dataloader.DataLoader(dataset, batch_size=batchSize, shuffle=True)
@@ -32,7 +32,7 @@ numEpochs = 300
 #normalize randomness
 tf.set_random_seed(7)
 
-"""Models"""
+#Models
 #takes image x and ouputs a value between 0 and 1 where 0 is fake and 1 is real
 def discriminator(x):#might be too powerful, already lowered learning rate, but might need to add dropout also
     with tf.variable_scope("discriminator", reuse=tf.AUTO_REUSE):
@@ -135,7 +135,7 @@ tf.summary.scalar("Discriminator Loss Fake", discriminatorLossFake)
 tf.summary.scalar("Discriminator Total Loss", discriminatorTotalLoss)
 tf.summary.scalar("Generator Loss", generatorLoss)
 
-#Optimzer setup
+#Optimizer setup
 trainableVariables = tf.trainable_variables()
 #seperate trainable variables into ones for discriminator and generator
 dTrainableVariables = [var for var in trainableVariables if "discriminator" in var.name]

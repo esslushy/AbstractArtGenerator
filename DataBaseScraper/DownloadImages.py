@@ -2,7 +2,7 @@ import urllib.request
 import codecs
 
 linkFile = codecs.open("links.txt", "r", "utf-8", errors="ignore")
-linkArr = linkFile.read().split("\n")
+linkArr = linkFile.readlines()
 linkFile.close()
 directory = "/Volumes/Seagate Exp/ImagesForArtGenerator/"
 ext = ".jpg"
