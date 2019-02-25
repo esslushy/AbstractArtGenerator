@@ -6,7 +6,7 @@ import torch
 #These imports are for the network itself
 import tensorflow as tf
 from tensorflow import nn, layers
-from keras.optimizers import Adam
+from tf.keras.optimizers import Adam
 import numpy as np
 #personal files
 from ops import *
