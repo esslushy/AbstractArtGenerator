@@ -82,10 +82,10 @@ def extractUpdateDict(update_ops):
         var_name = update.op.inputs[0].name
         var = name_to_var[var_name]
         value = update.op.inputs[1]
-        if update.op.type == 'Assign':
+        if update.op.type == 'AssignVariableOp' or update.op.type == 'Assign':
             updates[var.value()] = value
         elif update.op.type == 'AssignAdd':
             updates[var.value()] = var + value
         else:
-            raise ValueError("Update op type (%s) must be of type Assign or AssignAdd" % update_ops.op.type)
+            raise ValueError("Update op type (%s) must be of type Assign or AssignAdd" % update.op.type)
     return updates

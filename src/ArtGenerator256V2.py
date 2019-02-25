@@ -23,7 +23,7 @@ def getCustomDataset(file):
     return TensorDataset(torch.from_numpy(loadMemMap(file)))
 
 """Load and Prepare Data"""
-batchSize = 40
+batchSize = 10
 noiseLength = 100
 numEpochs = 150
 #standardize randomness
@@ -161,11 +161,7 @@ discriminatorLoss = tf.reduce_mean(
                                #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
                            )
                         )
-
-#add up all the losses
-
 #write losses to tensorboard
-
 tf.summary.scalar("Discriminator Total Loss", discriminatorLoss)
 
 #Optimzer setup
@@ -185,11 +181,11 @@ with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
     #unrolled loss
     updateDict = extractUpdateDict(updates)
     currentUpdateDict = updateDict
-    for i in range(5):
+    for i in range(2):
         currentUpdateDict = tf.contrib.graph_editor.graph_replace(updateDict, currentUpdateDict)
     unrolledLoss = tf.contrib.graph_editor.graph_replace(discriminatorLoss, currentUpdateDict)
     #train generator on unrolled loss
-    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5)#epsilon is already the same
+    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(-unrolledLoss, var_list=gTrainableVariables)#epsilon is already the same
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
 config = tf.ConfigProto(intra_op_parallelism_threads=3, inter_op_parallelism_threads=3, allow_soft_placement=True)
@@ -210,7 +206,7 @@ with tf.Session(config=config) as sess:
 
             realData = realData[0].numpy() #turns them into numpy and sticks them into another array
                 
-            summary, _, _ = sess.run([merged, discriminatorOptimizer, generatorOptimizer], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
+            summary, _, _ = sess.run([merged, generatorOptimizer, discriminatorOptimizer], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
             if numBatch % 10 == 0:
                 writer.add_summary(summary, globalStep)
                 globalStep+=1
