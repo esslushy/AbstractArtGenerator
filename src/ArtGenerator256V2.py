@@ -180,7 +180,7 @@ learningRate = tf.train.exponential_decay(.001, globalStep,
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
     #set up discriminator optimizer
     discriminatorOps = Adam(lr=learningRate, beta_1=0.5, epsilon=1e-8)
-    updates = discriminatorOps.get_updates(dTrainableVariables, discriminatorLoss)
+    updates = discriminatorOps.get_updates(discriminatorLoss, dTrainableVariables)
     discriminatorOptimizer = tf.group(*updates, name="Discriminator_Train_Ops")
     #unrolled loss
     updateDict = extractUpdateDict(updates)
