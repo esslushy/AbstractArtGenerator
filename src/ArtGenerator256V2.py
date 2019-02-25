@@ -149,15 +149,12 @@ with tf.device(device):
     discriminatorReal, discriminatorRealLogits = discriminator(x)#make discriminator that takes data from the real
     discriminatorFake, discriminatorFakeLogits = discriminator(generatorSamples)#make discriminator that takes fake data
 
-discriminatorLossReal = tf.reduce_mean(
+discriminatorLoss = tf.reduce_mean(
                            nn.sigmoid_cross_entropy_with_logits(
                                logits=discriminatorRealLogits, labels=tf.ones_like(discriminatorRealLogits),
                                name="discriminator_loss_real"
                                #takes real input and makes the labels 1 or real because it wants to identify real data as real
-                           ) 
-                        )
-
-discriminatorLossFake = tf.reduce_mean(
+                           ) +
                            nn.sigmoid_cross_entropy_with_logits(
                                logits=discriminatorFakeLogits, labels=tf.zeros_like(discriminatorFakeLogits),
                                name="discriminator_loss_fake"
@@ -166,12 +163,10 @@ discriminatorLossFake = tf.reduce_mean(
                         )
 
 #add up all the losses
-discriminatorTotalLoss = discriminatorLossReal + discriminatorLossFake 
 
 #write losses to tensorboard
-tf.summary.scalar("Discriminator Loss Real", discriminatorLossReal)
-tf.summary.scalar("Discriminator Loss Fake", discriminatorLossFake)
-tf.summary.scalar("Discriminator Total Loss", discriminatorTotalLoss)
+
+tf.summary.scalar("Discriminator Total Loss", discriminatorLoss)
 
 #Optimzer setup
 trainableVariables = tf.trainable_variables()
@@ -185,14 +180,14 @@ learningRate = tf.train.exponential_decay(.001, globalStep,
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
     #set up discriminator optimizer
     discriminatorOps = Adam(lr=learningRate, beta_1=0.5, epsilon=1e-8)
-    updates = discriminatorOps.get_updates(dTrainableVariables, [], discriminatorTotalLoss)
+    updates = discriminatorOps.get_updates(dTrainableVariables, [], discriminatorLoss)
     discriminatorOptimizer = tf.group(*updates, name="Discriminator_Train_Ops")
     #unrolled loss
     updateDict = extractUpdateDict(updates)
     currentUpdateDict = updateDict
     for i in range(5):
         currentUpdateDict = tf.contrib.graph_editor.graph_replace(updateDict, currentUpdateDict)
-    unrolledLoss = tf.contrib.graph_editor.graph_replace(discriminatorTotalLoss, currentUpdateDict)
+    unrolledLoss = tf.contrib.graph_editor.graph_replace(discriminatorLoss, currentUpdateDict)
     #train generator on unrolled loss
     generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5)#epsilon is already the same
 
