@@ -185,7 +185,7 @@ learningRate = tf.train.exponential_decay(.001, globalStep,
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
     #set up discriminator optimizer
     discriminatorOps = Adam(lr=learningRate, beta_1=0.5, epsilon=1e-8)
-    updates = discriminatorOps.get_updates(dTrainableVariables, discriminatorTotalLoss)
+    updates = discriminatorOps.get_updates(dTrainableVariables, [], discriminatorTotalLoss)
     discriminatorOptimizer = tf.group(*updates, name="Discriminator_Train_Ops")
     #unrolled loss
     updateDict = extractUpdateDict(updates)
@@ -194,7 +194,7 @@ with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
         currentUpdateDict = tf.contrib.graph_editor.graph_replace(updateDict, currentUpdateDict)
     unrolledLoss = tf.contrib.graph_editor.graph_replace(discriminatorTotalLoss, currentUpdateDict)
     #train generator on unrolled loss
-    generatorOptimizer = tf.train.AdamOptimizer(lr=.002, beta1=0.5)#epsilon is already the same
+    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5)#epsilon is already the same
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
 config = tf.ConfigProto(intra_op_parallelism_threads=3, inter_op_parallelism_threads=3, allow_soft_placement=True)
