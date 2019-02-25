@@ -23,7 +23,7 @@ def getCustomDataset(file):
     return TensorDataset(torch.from_numpy(loadMemMap(file)))
 
 """Load and Prepare Data"""
-batchSize = 1
+batchSize = 32
 noiseLength = 100
 numEpochs = 150
 #standardize randomness
@@ -161,8 +161,16 @@ discriminatorLoss = tf.reduce_mean(
                                #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
                            )
                         )
+generatorLoss = tf.reduce_mean(
+                            nn.sigmoid_cross_entropy_with_logits(
+                               logits=discriminatorFakeLogits, labels=tf.one_like(discriminatorFakeLogits) * .9,
+                               name="generator_loss_real"
+                               #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
+                            )
+                        )
 #write losses to tensorboard
 tf.summary.scalar("Discriminator Total Loss", discriminatorLoss)
+tf.summary.scalar("Generator Loss", generatorLoss)
 
 #Optimzer setup
 trainableVariables = tf.trainable_variables()
@@ -174,19 +182,8 @@ gTrainableVariables = [var for var in trainableVariables if "generator" in var.n
 learningRate = tf.train.exponential_decay(.001, globalStep,
                                            1000, 0.96, staircase=True)#decays learning rate b .96 every 100k steps
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-    #set up discriminator optimizer
-    discriminatorOps = Adam(lr=learningRate, beta_1=0.5, epsilon=1e-8)
-    updates = discriminatorOps.get_updates(discriminatorLoss, dTrainableVariables)
-    discriminatorOptimizer = tf.group(*updates, name="Discriminator_Train_Ops")
-#unrolled loss
-updateDict = extractUpdateDict(updates)
-currentUpdateDict = updateDict
-for i in range(3):
-    currentUpdateDict = tf.contrib.graph_editor.graph_replace(updateDict, currentUpdateDict)
-unrolledLoss = tf.contrib.graph_editor.graph_replace(discriminatorLoss, currentUpdateDict)
-with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-    #train generator on unrolled loss
-    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(-unrolledLoss, var_list=gTrainableVariables)#epsilon is already the same
+    discriminatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(discriminatorLoss, var_list=gTrainableVariables)#epsilon is already the same
+    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(generatorLoss, var_list=gTrainableVariables)#epsilon is already the same
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
 config = tf.ConfigProto(intra_op_parallelism_threads=3, inter_op_parallelism_threads=3, allow_soft_placement=True)
