@@ -7,6 +7,8 @@ from os import listdir
 from os.path import join, isfile
 from PIL import Image
 
+from collections import OrderedDict
+
 #standard of numpy randomness
 np.random.seed(7)
 
@@ -63,3 +65,27 @@ def denormalize(images):
     #change to 0 -> 1 ((x + currentMin) / (currentMax - currentMin)) * (newMax - newMin) + newMin
     images = (images+1) / 2
     return images
+
+#unrolled gan function
+def extractUpdateDict(update_ops):
+    """Extract variables and their new values from Assign and AssignAdd ops.
+    
+    Args:
+        update_ops: list of Assign and AssignAdd ops, typically computed using Keras' opt.get_updates()
+
+    Returns:
+        dict mapping from variable values to their updated value
+    """
+    name_to_var = {v.name: v for v in tf.global_variables()}
+    updates = OrderedDict()
+    for update in update_ops:
+        var_name = update.op.inputs[0].name
+        var = name_to_var[var_name]
+        value = update.op.inputs[1]
+        if update.op.type == 'Assign':
+            updates[var.value()] = value
+        elif update.op.type == 'AssignAdd':
+            updates[var.value()] = var + value
+        else:
+            raise ValueError("Update op type (%s) must be of type Assign or AssignAdd" % update_ops.op.type)
+    return updates

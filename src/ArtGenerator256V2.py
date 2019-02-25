@@ -6,6 +6,7 @@ import torch
 #These imports are for the network itself
 import tensorflow as tf
 from tensorflow import nn, layers
+from keras.optimizers import Adam
 import numpy as np
 #personal files
 from ops import *
@@ -24,7 +25,7 @@ def getCustomDataset(file):
 """Load and Prepare Data"""
 batchSize = 40
 noiseLength = 100
-numEpochs = 200
+numEpochs = 150
 #standardize randomness
 tf.set_random_seed(7)
 #set global step
@@ -164,14 +165,6 @@ discriminatorLossFake = tf.reduce_mean(
                            )
                         )
 
-generatorLoss = tf.reduce_mean(
-                           nn.sigmoid_cross_entropy_with_logits(
-                               logits=discriminatorFakeLogits, labels=tf.ones_like(discriminatorFakeLogits),
-                               name="generator_loss"
-                               #takes fake input and makes the labels 1 or real because generator wants to make its fake dat seem more real
-                           ) 
-                        )
-
 #add up all the losses
 discriminatorTotalLoss = discriminatorLossReal + discriminatorLossFake 
 
@@ -179,8 +172,6 @@ discriminatorTotalLoss = discriminatorLossReal + discriminatorLossFake
 tf.summary.scalar("Discriminator Loss Real", discriminatorLossReal)
 tf.summary.scalar("Discriminator Loss Fake", discriminatorLossFake)
 tf.summary.scalar("Discriminator Total Loss", discriminatorTotalLoss)
-tf.summary.scalar("Generator Loss", generatorLoss)
-
 
 #Optimzer setup
 trainableVariables = tf.trainable_variables()
@@ -192,8 +183,18 @@ gTrainableVariables = [var for var in trainableVariables if "generator" in var.n
 learningRate = tf.train.exponential_decay(.001, globalStep,
                                            1000, 0.96, staircase=True)#decays learning rate b .96 every 100k steps
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-    discriminatorOptimizer = tf.train.AdamOptimizer(learningRate).minimize(discriminatorTotalLoss, var_list=dTrainableVariables)
-    generatorOptimizer = tf.train.AdamOptimizer(.002).minimize(generatorLoss, var_list=gTrainableVariables)
+    #set up discriminator optimizer
+    discriminatorOps = Adam(lr=learningRate, beta_1=0.5, epsilon=1e-8)
+    updates = discriminatorOps.get_updates(dTrainableVariables, discriminatorTotalLoss)
+    discriminatorOptimizer = tf.group(*updates, name="Discriminator_Train_Ops")
+    #unrolled loss
+    updateDict = extractUpdateDict(updates)
+    currentUpdateDict = updateDict
+    for i in range(5):
+        currentUpdateDict = tf.contrib.graph_editor.graph_replace(updateDict, currentUpdateDict)
+    unrolledLoss = tf.contrib.graph_editor.graph_replace(discriminatorTotalLoss, currentUpdateDict)
+    #train generator on unrolled loss
+    generatorOptimizer = tf.train.AdamOptimizer(lr=.002, beta1=0.5)#epsilon is already the same
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
 config = tf.ConfigProto(intra_op_parallelism_threads=3, inter_op_parallelism_threads=3, allow_soft_placement=True)
@@ -214,7 +215,7 @@ with tf.Session(config=config) as sess:
 
             realData = realData[0].numpy() #turns them into numpy and sticks them into another array
                 
-            _, _, summary = sess.run([discriminatorOptimizer, generatorOptimizer, merged], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
+            summary, _, _ = sess.run([merged, discriminatorOptimizer, generatorOptimizer], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
             if numBatch % 10 == 0:
                 writer.add_summary(summary, globalStep)
                 globalStep+=1
