@@ -6,7 +6,6 @@ import torch
 #These imports are for the network itself
 import tensorflow as tf
 from tensorflow import nn, layers
-from tensorflow.keras.optimizers import Adam
 import numpy as np
 #personal files
 from ops import *
@@ -154,13 +153,15 @@ discriminatorLoss = tf.reduce_mean(
                                logits=discriminatorRealLogits, labels=tf.ones_like(discriminatorRealLogits),
                                name="discriminator_loss_real"
                                #takes real input and makes the labels 1 or real because it wants to identify real data as real
-                           ) +
+                           )
+                    ) + tf.reduce_mean(
                            nn.sigmoid_cross_entropy_with_logits(
                                logits=discriminatorFakeLogits, labels=tf.zeros_like(discriminatorFakeLogits),
                                name="discriminator_loss_fake"
                                #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
                            )
                         )
+                    
 generatorLoss = tf.reduce_mean(
                             nn.sigmoid_cross_entropy_with_logits(
                                logits=discriminatorFakeLogits, labels=tf.one_like(discriminatorFakeLogits) * .9,
@@ -182,7 +183,7 @@ gTrainableVariables = [var for var in trainableVariables if "generator" in var.n
 learningRate = tf.train.exponential_decay(.001, globalStep,
                                            1000, 0.96, staircase=True)#decays learning rate b .96 every 100k steps
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-    discriminatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(discriminatorLoss, var_list=gTrainableVariables)#epsilon is already the same
+    discriminatorOptimizer = tf.train.AdamOptimizer(learning_rate=learningRate, beta1=0.5).minimize(discriminatorLoss, var_list=gTrainableVariables)#epsilon is already the same
     generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(generatorLoss, var_list=gTrainableVariables)#epsilon is already the same
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
