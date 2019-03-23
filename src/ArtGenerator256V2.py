@@ -78,7 +78,7 @@ def discriminator(x):#might be too powerful, already lowered learning rate, but 
             x = layers.batch_normalization(x, training=True)
             x = nn.leaky_relu(x, alpha=0.2)
         with tf.variable_scope("flatten"):
-            x = tf.reshape(x, (-1, 4, 4, 1024))#from 3d object 1024x4x4
+            x = tf.reshape(x, (-1, 4*4*1024))#from 3d object 1024x4x4
             logits = layers.dense(x, units=1, activation=None, kernel_initializer=tf.contrib.layers.xavier_initializer())#1024x4x4 to a shape of 1 to sigmoid
         with tf.variable_scope("output"):
             out = nn.sigmoid(x)
