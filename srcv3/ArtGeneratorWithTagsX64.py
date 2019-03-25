@@ -19,8 +19,10 @@ tf.set_random_seed(7)
 #global step
 globalStep = 1
 #dataset
-
-
+images = torch.from_numpy(np.load('C:\\Users\\evans\\datasets\\images.npy'))
+tags = torch.from_numpy(np.load('C:\\Users\\evans\\datasets\\tags.npy'))
+dataset = TensorDataset(images, tags)
+dataLoader = dataloader.DataLoader(dataset, batch_size=batchSize, shuffle=True)
 #models
 def generator(z, y):
     yb = tf.reshape(y, [-1, 1, 1, tagLength])#makes 3d config of tags to append to conv
@@ -205,11 +207,11 @@ with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
     print("Starting Session")
     for epoch in range(numEpochs):
-        for numBatch, realData in enumerate(dataLoader):
+        for numBatch, (images, tags) in enumerate(dataLoader):
 
-            realData = realData[0].numpy() #turns them into numpy and sticks them into another array
-                
-            summary, _, _ = sess.run([merged, generatorOptimizer, discriminatorOptimizer], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
+            images = images[0].numpy() #turns them into numpy and sticks them into another array
+            tags = tags[0].numpy()
+            summary, _, _ = sess.run([merged, generatorOptimizer, discriminatorOptimizer], feed_dict={ x : images, z : noise(batchSize, noiseLength),  y : tags })
             if numBatch % 10 == 0:
                 writer.add_summary(summary, globalStep)
                 globalStep+=1
