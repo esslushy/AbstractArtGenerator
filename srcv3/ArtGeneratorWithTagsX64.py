@@ -19,8 +19,8 @@ tf.set_random_seed(7)
 #global step
 globalStep = 1
 #dataset
-images = torch.from_numpy(np.load('C:\\Users\\evans\\datasets\\images.npy'))
-tags = torch.from_numpy(np.load('C:\\Users\\evans\\datasets\\tags.npy'))
+images = torch.from_numpy(np.load('../dataset/images.npy'))
+tags = torch.from_numpy(np.load('../dataset/tags.npy'))
 dataset = TensorDataset(images, tags)
 dataLoader = dataloader.DataLoader(dataset, batch_size=batchSize, shuffle=True)
 #models

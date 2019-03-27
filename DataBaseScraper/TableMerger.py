@@ -79,5 +79,5 @@ for link, tag in SrcAndTags:
     downloadedImages.append(img)
     tags.append(tag)
 
-np.save('C:\\Users\\evans\\datasets\\images.npy', downloadedImages)
-np.save('C:\\Users\\evans\\datasets\\tags.npy', tags)
+np.save('../dataset/images.npy', downloadedImages)
+np.save('../dataset/tags.npy', tags)
