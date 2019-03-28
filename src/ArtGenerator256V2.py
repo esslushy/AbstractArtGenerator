@@ -7,6 +7,7 @@ import torch
 import tensorflow as tf
 from tensorflow import nn, layers
 import numpy as np
+from collections import OrderedDict
 #personal files
 from ops import *
 
@@ -22,13 +23,16 @@ def getCustomDataset(file):
     return TensorDataset(torch.from_numpy(loadMemMap(file)))
 
 """Load and Prepare Data"""
-batchSize = 32
+batchSize = 50
 noiseLength = 100
 numEpochs = 150
+unrolledSteps = 3
 #standardize randomness
 tf.set_random_seed(7)
 #set global step
 globalStep = 1
+
+Adam = tf.contrib.keras.optimizers.Adam
 
 #make dataset loader since dataset split into multiple parts, you need to load different versions
 def loadDataset(file):
@@ -132,9 +136,9 @@ def generator(z):
 
 #Placeholders
 #makes input into discriminator a 4d array where it is array of 3d arrays to represent images
-x = tf.placeholder(dtype=tf.float32, shape=(None, 256, 256, 3), name="Images")
+x = tf.placeholder(dtype=tf.float16, shape=(None, 256, 256, 3), name="Images")
 #noise unkown length for unkown number of images to be made
-z = tf.placeholder(dtype=tf.float32, shape=(None, noiseLength), name="Noise")
+z = tf.placeholder(dtype=tf.float16, shape=(None, noiseLength), name="Noise")
 
 #Make models and set to use gpu
 #test if gpu is available
@@ -148,7 +152,33 @@ with tf.device(device):
     discriminatorReal, discriminatorRealLogits = discriminator(x)#make discriminator that takes data from the real
     discriminatorFake, discriminatorFakeLogits = discriminator(generatorSamples)#make discriminator that takes fake data
 
-discriminatorLoss = tf.reduce_mean(
+#unrolled loss funcs
+def removeOriginalGraphOperation(graph):
+    for op in graph.get_operations():
+        op._original_op = None
+
+def graphReplace(*args, **kwargs):#runs tf.contrib.graph_editor.graph_replace
+    removeOriginalGraphOperation(tf.get_default_graph())
+    return tf.contrib.graph_editor.graph_replace(*args, **kwargs)
+
+def getUpdateDict(updateOps):
+    varNames = {v.name: v for v in tf.global_variables()}
+    updates = OrderedDict()
+    for update in updateOps:
+        varName = update.op.inputs[0].name
+        var = varNames[varName]
+        value = update.op.inputs[1]
+        if update.op.type == 'Assign':
+            updates[var.value()] = value
+        elif update.op.type == 'AssignAdd':
+            updates[var.value()] = var + value
+        else:
+            raise ValueError(
+                "Update op type (%s) must be of type Assign or AssignAdd" % update_op.op.type)
+    return updates
+
+def computeLoss():
+    discriminatorLoss = tf.reduce_mean(
                            nn.sigmoid_cross_entropy_with_logits(
                                logits=discriminatorRealLogits, labels=tf.ones_like(discriminatorRealLogits),
                                name="discriminator_loss_real"
@@ -161,30 +191,29 @@ discriminatorLoss = tf.reduce_mean(
                                #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
                            )
                         )
-                    
-generatorLoss = tf.reduce_mean(
-                            nn.sigmoid_cross_entropy_with_logits(
-                               logits=discriminatorFakeLogits, labels=tf.one_like(discriminatorFakeLogits) * .9,
-                               name="generator_loss_real"
-                               #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
-                            )
-                        )
+
+    generatorVariables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='generator')
+    discriminatorVariables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='discriminator')
+
+    discriminatorOptimizer = Adam(lr=1e-4, beta_1=.5)
+    updates = discriminatorOptimizer.get_updates(discriminatorLoss, discriminatorVariables)
+    discriminatorTrainer = tf.group(*updates, name='discriminator_training_op')
+
+    updateDict = getUpdateDict(updates)
+    currentUpdateDict = updateDict
+    for i in range(unrolledSteps-1):
+        currentUpdateDict = graphReplace(updateDict, currentUpdateDict)
+    unrolledLoss = graphReplace(discriminatorLoss, currentUpdateDict)
+
+    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=1e-3, beta1=.5)
+    generatorTrainer = generatorOptimizer.minimize(-unrolledLoss, var_list=generatorVariables)
+    return discriminatorLoss, unrolledLoss, discriminatorTrainer, generatorTrainer
+
+discriminatorLoss, unrolledLoss, discriminatorTrainer, generatorTrainer = computeLoss()
+
 #write losses to tensorboard
 tf.summary.scalar("Discriminator Total Loss", discriminatorLoss)
-tf.summary.scalar("Generator Loss", generatorLoss)
-
-#Optimzer setup
-trainableVariables = tf.trainable_variables()
-#seperate trainable variables into ones for discriminator and generator
-dTrainableVariables = [var for var in trainableVariables if "discriminator" in var.name]
-gTrainableVariables = [var for var in trainableVariables if "generator" in var.name]
-
-#build adam optimizers. paper said to use .0002. discriminator a tad strong so used .0001. 256 version used smaller numbers b/c smaller batch
-learningRate = tf.train.exponential_decay(.001, globalStep,
-                                           1000, 0.96, staircase=True)#decays learning rate b .96 every 100k steps
-with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-    discriminatorOptimizer = tf.train.AdamOptimizer(learning_rate=learningRate, beta1=0.5).minimize(discriminatorLoss, var_list=gTrainableVariables)#epsilon is already the same
-    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(generatorLoss, var_list=gTrainableVariables)#epsilon is already the same
+tf.summary.scalar("Generator Loss", unrolledLoss)
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
 config = tf.ConfigProto(intra_op_parallelism_threads=3, inter_op_parallelism_threads=3, allow_soft_placement=True)
@@ -205,7 +234,7 @@ with tf.Session(config=config) as sess:
 
             realData = realData[0].numpy() #turns them into numpy and sticks them into another array
                 
-            summary, _, _ = sess.run([merged, generatorOptimizer, discriminatorOptimizer], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
+            summary, _, _ = sess.run([merged, generatorTrainer, discriminatorTrainer], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
             if numBatch % 10 == 0:
                 writer.add_summary(summary, globalStep)
                 globalStep+=1
