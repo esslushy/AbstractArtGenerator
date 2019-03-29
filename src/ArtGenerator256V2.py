@@ -23,7 +23,7 @@ def getCustomDataset(file):
     return TensorDataset(torch.from_numpy(loadMemMap(file)))
 
 """Load and Prepare Data"""
-batchSize = 50
+batchSize = 5
 noiseLength = 100
 numEpochs = 150
 unrolledSteps = 3
@@ -46,40 +46,39 @@ def discriminator(x):#might be too powerful, already lowered learning rate, but 
     with tf.variable_scope("discriminator", reuse=tf.AUTO_REUSE):
         with tf.variable_scope("convolutional_layer_1"):
             x = convolutLayer(x, 4, (1,1))#3x256x256 -> 4x256x256
-            x = layers.batch_normalization(x, training=True)
-            x = nn.leaky_relu(x, alpha=0.2)
+            x  = tf.maximum(x, 0.2 * x)
         with tf.variable_scope("convolutional_layer_2"):
             x = convolutLayer(x, 8, (1,1))#4x256x256 -> 8x256x256
             x = layers.batch_normalization(x, training=True)
-            x = nn.leaky_relu(x, alpha=0.2)
+            x  = tf.maximum(x, 0.2 * x)
         with tf.variable_scope("convolutional_layer_3"):
             x = convolutLayer(x, 16, (1,1))#8x256x256 -> 16x256x256
             x = layers.batch_normalization(x, training=True)
-            x = nn.leaky_relu(x, alpha=0.2)
+            x  = tf.maximum(x, 0.2 * x)
         with tf.variable_scope("convolutional_layer_4"):
             x = convolutLayer(x, 32)#16x256x256 -> 32x128x128
             x = layers.batch_normalization(x, training=True)
-            x = nn.leaky_relu(x, alpha=0.2)
+            x  = tf.maximum(x, 0.2 * x)
         with tf.variable_scope("convolutional_layer_5"):
             x = convolutLayer(x, 64)#32x128x128 -> 64x64x64
             x = layers.batch_normalization(x, training=True)
-            x = nn.leaky_relu(x, alpha=0.2)
+            x  = tf.maximum(x, 0.2 * x)
         with tf.variable_scope("convolutional_layer_6"):
             x = convolutLayer(x, 128)#64x64x64 -> 128x32x32
             x = layers.batch_normalization(x, training=True)
-            x = nn.leaky_relu(x, alpha=0.2)
+            x  = tf.maximum(x, 0.2 * x)
         with tf.variable_scope("convolutional_layer_7"):
             x = convolutLayer(x, 256)#128x32x32 -> 256x16x16
             x = layers.batch_normalization(x, training=True)
-            x = nn.leaky_relu(x, alpha=0.2)
+            x  = tf.maximum(x, 0.2 * x)
         with tf.variable_scope("convolutional_layer_8"):
             x = convolutLayer(x, 512)#256x16x16 -> 512x8x8
             x = layers.batch_normalization(x, training=True)
-            x = nn.leaky_relu(x, alpha=0.2)
+            x  = tf.maximum(x, 0.2 * x)
         with tf.variable_scope("convolution_layer_9"):
             x = convolutLayer(x, 1024)#512x8x8 -> 1024x4x4
             x = layers.batch_normalization(x, training=True)
-            x = nn.leaky_relu(x, alpha=0.2)
+            x  = tf.maximum(x, 0.2 * x)
         with tf.variable_scope("flatten"):
             x = tf.reshape(x, (-1, 4*4*1024))#from 3d object 1024x4x4
             logits = layers.dense(x, units=1, activation=None, kernel_initializer=tf.contrib.layers.xavier_initializer())#1024x4x4 to a shape of 1 to sigmoid
@@ -136,9 +135,9 @@ def generator(z):
 
 #Placeholders
 #makes input into discriminator a 4d array where it is array of 3d arrays to represent images
-x = tf.placeholder(dtype=tf.float16, shape=(None, 256, 256, 3), name="Images")
+x = tf.placeholder(dtype=tf.float32, shape=(None, 256, 256, 3), name="Images")
 #noise unkown length for unkown number of images to be made
-z = tf.placeholder(dtype=tf.float16, shape=(None, noiseLength), name="Noise")
+z = tf.placeholder(dtype=tf.float32, shape=(None, noiseLength), name="Noise")
 
 #Make models and set to use gpu
 #test if gpu is available
@@ -168,13 +167,13 @@ def getUpdateDict(updateOps):
         varName = update.op.inputs[0].name
         var = varNames[varName]
         value = update.op.inputs[1]
-        if update.op.type == 'Assign':
+        if update.op.type == 'Assign' or update.op.type == 'AssignVariableOp':
             updates[var.value()] = value
         elif update.op.type == 'AssignAdd':
             updates[var.value()] = var + value
         else:
             raise ValueError(
-                "Update op type (%s) must be of type Assign or AssignAdd" % update_op.op.type)
+                "Update op type (%s) must be of type Assign or AssignAdd" % update.op.type)
     return updates
 
 def computeLoss():
@@ -192,8 +191,8 @@ def computeLoss():
                            )
                         )
 
-    generatorVariables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='generator')
-    discriminatorVariables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='discriminator')
+    generatorVariables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
+    discriminatorVariables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
 
     discriminatorOptimizer = Adam(lr=1e-4, beta_1=.5)
     updates = discriminatorOptimizer.get_updates(discriminatorLoss, discriminatorVariables)
@@ -225,7 +224,7 @@ saver = tf.train.Saver()
 merged = tf.summary.merge_all()
 
 with tf.Session(config=config) as sess:
-    writer = tf.summary.FileWriter("./info256", sess.graph)
+    writer = tf.summary.FileWriter("./infounrolled", sess.graph)
     sess.run(tf.global_variables_initializer())
     print("Starting Session")
     dataLoader = loadDataset("ImagesX256.npy")
@@ -235,11 +234,12 @@ with tf.Session(config=config) as sess:
             realData = realData[0].numpy() #turns them into numpy and sticks them into another array
                 
             summary, _, _ = sess.run([merged, generatorTrainer, discriminatorTrainer], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
+            print('finished batch')
             if numBatch % 10 == 0:
                 writer.add_summary(summary, globalStep)
                 globalStep+=1
             if numBatch % 100 == 0:
-                saver.save(sess, "./model256/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))
-    saver.save(sess, "./model256/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))          
+                saver.save(sess, "./modelunrolled/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))
+    saver.save(sess, "./modelunrolled/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))          
     writer.close()
 
