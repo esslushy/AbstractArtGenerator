@@ -6,6 +6,7 @@ import torch
 #These imports are for the network itself
 import tensorflow as tf
 from tensorflow import nn, layers
+from tensorflow.python.keras import backend as k
 import numpy as np
 from collections import OrderedDict
 #personal files
@@ -194,7 +195,7 @@ def computeLoss():
     generatorVariables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
     discriminatorVariables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
 
-    discriminatorOptimizer = Adam(lr=1e-4, beta_1=.5)
+    discriminatorOptimizer = Adam(lr=1e-10, beta_1=.5)
     updates = discriminatorOptimizer.get_updates(discriminatorLoss, discriminatorVariables)
     discriminatorTrainer = tf.group(*updates, name='discriminator_training_op')
 
@@ -204,7 +205,7 @@ def computeLoss():
         currentUpdateDict = graphReplace(updateDict, currentUpdateDict)
     unrolledLoss = graphReplace(discriminatorLoss, currentUpdateDict)
 
-    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=1e-3, beta1=.5)
+    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=1e-9, beta1=.5)
     generatorTrainer = generatorOptimizer.minimize(-unrolledLoss, var_list=generatorVariables)
     return discriminatorLoss, unrolledLoss, discriminatorTrainer, generatorTrainer
 
@@ -226,6 +227,7 @@ merged = tf.summary.merge_all()
 with tf.Session(config=config) as sess:
     writer = tf.summary.FileWriter("./infounrolled", sess.graph)
     sess.run(tf.global_variables_initializer())
+    k.set_session(sess)
     print("Starting Session")
     dataLoader = loadDataset("ImagesX256.npy")
     for epoch in range(numEpochs):
@@ -233,7 +235,7 @@ with tf.Session(config=config) as sess:
 
             realData = realData[0].numpy() #turns them into numpy and sticks them into another array
                 
-            summary, _, _ = sess.run([merged, generatorTrainer, discriminatorTrainer], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
+            summary, _, _, _, _ = sess.run([merged, discriminatorLoss, unrolledLoss, generatorTrainer, discriminatorTrainer], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
             print('finished batch')
             if numBatch % 10 == 0:
                 writer.add_summary(summary, globalStep)

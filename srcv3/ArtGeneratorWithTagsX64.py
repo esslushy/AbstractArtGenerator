@@ -7,6 +7,7 @@ import tensorflow as tf
 import numpy as np
 from tensorflow.python.keras.layers import Dense, BatchNormalization
 from tensorflow import nn
+from keras import backend as k
 
 from ops import noise, deconvolutLayer, convolutLayer, convolutionalConcat
 
