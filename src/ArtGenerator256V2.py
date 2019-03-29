@@ -25,6 +25,7 @@ def getCustomDataset(file):
 batchSize = 32
 noiseLength = 100
 numEpochs = 150
+unrollingSteps = 10
 #standardize randomness
 tf.set_random_seed(7)
 #set global step
@@ -164,7 +165,7 @@ discriminatorLoss = tf.reduce_mean(
                     
 generatorLoss = tf.reduce_mean(
                             nn.sigmoid_cross_entropy_with_logits(
-                               logits=discriminatorFakeLogits, labels=tf.one_like(discriminatorFakeLogits) * .9,
+                               logits=discriminatorFakeLogits, labels=tf.ones_like(discriminatorFakeLogits) * .9,
                                name="generator_loss_real"
                                #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
                             )
@@ -206,11 +207,11 @@ with tf.Session(config=config) as sess:
             realData = realData[0].numpy() #turns them into numpy and sticks them into another array
                 
             summary, _, _ = sess.run([merged, generatorOptimizer, discriminatorOptimizer], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
+            print('finished batch')
             if numBatch % 10 == 0:
                 writer.add_summary(summary, globalStep)
                 globalStep+=1
             if numBatch % 100 == 0:
                 saver.save(sess, "./model256/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))
-    saver.save(sess, "./model256/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))          
+    saver.save(sess, "./model256/DCGAN_Final")          
     writer.close()
-
