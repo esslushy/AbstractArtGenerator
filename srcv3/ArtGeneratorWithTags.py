@@ -8,6 +8,9 @@ import numpy as np
 from tensorflow.python.keras.layers import Dense, BatchNormalization
 from tensorflow import nn
 
+import cv2
+import urllib
+
 from ops import noise, deconvolutLayer, convolutLayer, convolutionalConcat
 
 batchSize = 128
@@ -209,10 +212,10 @@ dTrainableVariables = [var for var in trainableVariables if "discriminator" in v
 gTrainableVariables = [var for var in trainableVariables if "generator" in var.name]
 
 #build adam optimizers. paper said to use .0002. discriminator a tad strong so used .0001. 256 version used smaller numbers b/c smaller batch
-learningRate = tf.train.exponential_decay(.0001, globalStep,
-                                           1000, 0.96, staircase=True)#decays learning rate b .96 every 100k steps
+# learningRate = tf.train.exponential_decay(.0001, globalStep,
+#                                            1000, 0.96, staircase=True)#decays learning rate b .96 every 100k steps
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-    discriminatorOptimizer = tf.train.AdamOptimizer(learning_rate=learningRate, beta1=0.5).minimize(discriminatorLoss, var_list=gTrainableVariables)#epsilon is already the same
+    discriminatorOptimizer = tf.train.AdamOptimizer(learning_rate=.0002, beta1=0.5).minimize(discriminatorLoss, var_list=gTrainableVariables)#epsilon is already the same
     generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.0002, beta1=0.5).minimize(generatorLoss, var_list=gTrainableVariables)#epsilon is already the same
 
 

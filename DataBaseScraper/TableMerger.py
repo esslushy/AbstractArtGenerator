@@ -36,9 +36,6 @@ OneHotValues = MergedInfo.iloc[:, 1:].values
 SrcValues = MergedInfo.iloc[:, :1].values
 #flush old dataframe
 del MergedInfo
-#setup new dataset
-
-
-
+#save stuff
 np.save('../dataset/images.npy', SrcValues)
 np.save('../dataset/tags.npy', OneHotValues)
