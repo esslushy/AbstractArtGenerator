@@ -10,7 +10,7 @@ from tensorflow import nn
 
 from ops import noise, deconvolutLayer, convolutLayer, convolutionalConcat
 
-batchSize = 100
+batchSize = 128
 noiseLength = 100
 tagLength = 20
 numEpochs = 150
@@ -23,6 +23,30 @@ images = torch.from_numpy(np.load('../dataset/images.npy'))
 tags = torch.from_numpy(np.load('../dataset/tags.npy'))
 dataset = TensorDataset(images, tags)
 dataLoader = dataloader.DataLoader(dataset, batch_size=batchSize, shuffle=True)
+
+def getImage(link):
+    try:
+        resp = urllib.request.urlopen(link)#get data
+        img = np.asarray(bytearray(resp.read()), dtype="uint8")#read as image
+        img = cv2.imdecode(img, cv2.IMREAD_COLOR)#cv1 image
+    except urllib.error.HTTPError as e:#sometimes pages are missing or server won't respond this is ok as we will still get enough data
+        return
+    except urllib.error.URLError as e:
+        return
+    except ConnectionResetError as e:
+        return
+    try:
+        img = cv2.resize(img, (256, 256))#sometimes image will be empty this will catch it
+    except cv2.error:
+        return
+    img = np.array(img)
+    img = img.astype('float32')#turn to float 32 array
+    #normalizes and converts images to -1 -> 1 range
+    np.subtract(img, np.array(127.5), out=img)
+    np.divide(img, np.array(127.5), out=img)
+    return img
+
+
 #models
 def generator(z, y):
     yb = tf.reshape(y, [-1, 1, 1, tagLength])#makes 3d config of tags to append to conv
@@ -139,9 +163,9 @@ def discriminator(x, y):
     return out, logits
 
 #placeholders
-x = tf.placeholder(dtype=tf.float16, shape=(None, 64, 64, 3), name='Images')
-z = tf.placeholder(dtype=tf.float16, shape=(None, noiseLength), name='Noise')
-y = tf.placeholder(dtype=tf.float16, shape=(None, tagLength), name='Tags')
+x = tf.placeholder(dtype=tf.float32, shape=(None, 64, 64, 3), name='Images')
+z = tf.placeholder(dtype=tf.float32, shape=(None, noiseLength), name='Noise')
+y = tf.placeholder(dtype=tf.float32, shape=(None, tagLength), name='Tags')
 
 device = ''
 if tf.test.is_gpu_available():
@@ -185,11 +209,11 @@ dTrainableVariables = [var for var in trainableVariables if "discriminator" in v
 gTrainableVariables = [var for var in trainableVariables if "generator" in var.name]
 
 #build adam optimizers. paper said to use .0002. discriminator a tad strong so used .0001. 256 version used smaller numbers b/c smaller batch
-learningRate = tf.train.exponential_decay(.001, globalStep,
+learningRate = tf.train.exponential_decay(.0001, globalStep,
                                            1000, 0.96, staircase=True)#decays learning rate b .96 every 100k steps
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
     discriminatorOptimizer = tf.train.AdamOptimizer(learning_rate=learningRate, beta1=0.5).minimize(discriminatorLoss, var_list=gTrainableVariables)#epsilon is already the same
-    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(generatorLoss, var_list=gTrainableVariables)#epsilon is already the same
+    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.0002, beta1=0.5).minimize(generatorLoss, var_list=gTrainableVariables)#epsilon is already the same
 
 
 #config
@@ -207,11 +231,20 @@ with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
     print("Starting Session")
     for epoch in range(numEpochs):
-        for numBatch, (images, tags) in enumerate(dataLoader):
+        for numBatch, (links, tempTags) in enumerate(dataLoader):
 
-            images = images[0].numpy() #turns them into numpy and sticks them into another array
-            tags = tags[0].numpy()
-            summary, _, _ = sess.run([merged, generatorOptimizer, discriminatorOptimizer], feed_dict={ x : images, z : noise(batchSize, noiseLength),  y : tags })
+            links = links[0].numpy() #turns them into numpy and sticks them into another array
+            tempTags = tempTags[0].numpy()
+            #gets images from link
+            images = []
+            tags = []
+            for i in range(links):
+                img = getImage(links[i])
+                if(img == None):
+                    continue
+                images.append(img)
+                tags.append(tempTags[i])
+            summary, _, _ = sess.run([merged, generatorOptimizer, discriminatorOptimizer], feed_dict={ x : images, z : noise(len(images), noiseLength),  y : tags })
             if numBatch % 10 == 0:
                 writer.add_summary(summary, globalStep)
                 globalStep+=1
