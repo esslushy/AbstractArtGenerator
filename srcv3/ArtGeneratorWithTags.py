@@ -214,8 +214,8 @@ gTrainableVariables = [var for var in trainableVariables if "generator" in var.n
 # learningRate = tf.train.exponential_decay(.0001, globalStep,
 #                                            1000, 0.96, staircase=True)#decays learning rate b .96 every 100k steps
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-    discriminatorOptimizer = tf.train.AdamOptimizer(learning_rate=.0002, beta1=0.5).minimize(discriminatorLoss, var_list=gTrainableVariables)#epsilon is already the same
-    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.0002, beta1=0.5).minimize(generatorLoss, var_list=gTrainableVariables)#epsilon is already the same
+    discriminatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(discriminatorLoss, var_list=gTrainableVariables)#epsilon is already the same
+    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(generatorLoss, var_list=gTrainableVariables)#epsilon is already the same
 
 
 #config
@@ -248,9 +248,11 @@ with tf.Session(config=config) as sess:
                         continue
                     images.append(img)
                     tags.append(tempTags[i])
+                print('got images')
                 summary, _, _ = sess.run([merged, generatorOptimizer, discriminatorOptimizer], feed_dict={ x : images, z : noise(len(images), noiseLength),  y : tags })
                 writer.add_summary(summary, globalStep)
                 globalStep+=1
+                print('batch done')
             except tf.errors.OutOfRangeError:#when data runs out
                 print('Finished Epoch ' + epoch)
                 saver.save(sess, "./model/DCGAN_Epoch_%s.ckpt" % (epoch))
