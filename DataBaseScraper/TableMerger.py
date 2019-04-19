@@ -6,6 +6,7 @@ import cv2
 
 #connect
 conn = sqlite3.connect("BamImages.sqlite")
+outConn = sqlite3.connect('../dataset/info.sqlite')
 #read from table
 IDwithInfo = pd.read_sql(sql='select * from automatic_labels;', con=conn)
 IDwithLink = pd.read_sql(sql='select * from modules;', con=conn)
@@ -32,10 +33,5 @@ print(MergedInfo.columns.values)
 MergedInfo = MergedInfo.replace('negative', 0).replace('unsure', .5).replace('positive', 1)
 print(MergedInfo)
 #change it so that the last is a one hot encoding of the 20 categoires
-OneHotValues = MergedInfo.iloc[:, 1:].values
-SrcValues = MergedInfo.iloc[:, :1].values
-#flush old dataframe
-del MergedInfo
-#save stuff
-np.save('../dataset/images.npy', SrcValues)
-np.save('../dataset/tags.npy', OneHotValues)
+MergedInfo.to_csv('../dataset/info.csv', index=False)
+MergedInfo.to_sql('../dataset/SrcAndTags', outConn)

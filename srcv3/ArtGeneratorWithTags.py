@@ -27,6 +27,7 @@ def getImage(link):
     try:
         resp = urllib.request.urlopen(link.decode('ASCII'))#get data
         img = np.asarray(bytearray(resp.read()), dtype="uint8")#read as image
+        print('got image')
         img = cv2.imdecode(img, cv2.IMREAD_COLOR)#cv1 image
     except urllib.error.HTTPError as e:#sometimes pages are missing or server won't respond this is ok as we will still get enough data
         return

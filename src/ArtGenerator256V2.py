@@ -22,7 +22,7 @@ def getCustomDataset(file):
     return TensorDataset(torch.from_numpy(loadMemMap(file)))
 
 """Load and Prepare Data"""
-batchSize = 64
+batchSize = 32
 noiseLength = 100
 numEpochs = 150
 unrollingSteps = 10
@@ -133,9 +133,9 @@ def generator(z):
 
 #Placeholders
 #makes input into discriminator a 4d array where it is array of 3d arrays to represent images
-x = tf.placeholder(dtype=tf.float16, shape=(None, 256, 256, 3), name="Images")
+x = tf.placeholder(dtype=tf.float32, shape=(None, 256, 256, 3), name="Images")
 #noise unkown length for unkown number of images to be made
-z = tf.placeholder(dtype=tf.float16, shape=(None, noiseLength), name="Noise")
+z = tf.placeholder(dtype=tf.float32, shape=(None, noiseLength), name="Noise")
 
 #Make models and set to use gpu
 #test if gpu is available
@@ -151,7 +151,7 @@ with tf.device(device):
 
 discriminatorLoss = tf.reduce_mean(
                            nn.sigmoid_cross_entropy_with_logits(
-                               logits=discriminatorRealLogits, labels=tf.ones_like(discriminatorRealLogits),
+                               logits=discriminatorRealLogits, labels=tf.ones_like(discriminatorRealLogits) *.9,
                                name="discriminator_loss_real"
                                #takes real input and makes the labels 1 or real because it wants to identify real data as real
                            )
@@ -165,7 +165,7 @@ discriminatorLoss = tf.reduce_mean(
                     
 generatorLoss = tf.reduce_mean(
                             nn.sigmoid_cross_entropy_with_logits(
-                               logits=discriminatorFakeLogits, labels=tf.one_like(discriminatorFakeLogits) * .9,
+                               logits=discriminatorFakeLogits, labels=tf.ones_like(discriminatorFakeLogits),
                                name="generator_loss_real"
                                #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
                             )
@@ -197,7 +197,7 @@ saver = tf.train.Saver()
 merged = tf.summary.merge_all()
 
 with tf.Session(config=config) as sess:
-    writer = tf.summary.FileWriter("./info256", sess.graph)
+    writer = tf.summary.FileWriter("./info256v2", sess.graph)
     sess.run(tf.global_variables_initializer())
     print("Starting Session")
     dataLoader = loadDataset("ImagesX256.npy")
@@ -211,6 +211,6 @@ with tf.Session(config=config) as sess:
                 writer.add_summary(summary, globalStep)
                 globalStep+=1
             if numBatch % 100 == 0:
-                saver.save(sess, "./model256/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))
-    saver.save(sess, "./model256/DCGAN_Final")          
+                saver.save(sess, "./model256v2/DCGAN_Epoch_%s_Batch_%s.ckpt" % (epoch, numBatch))
+    saver.save(sess, "./model256v2/DCGAN_Final")          
     writer.close()
