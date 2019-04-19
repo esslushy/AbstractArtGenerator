@@ -25,7 +25,7 @@ def getCustomDataset(file):
 batchSize = 32
 noiseLength = 100
 numEpochs = 150
-unrollingSteps = 10
+unrollingSteps = 5
 #standardize randomness
 tf.set_random_seed(7)
 #set global step
@@ -39,8 +39,8 @@ def loadDataset(file):
 
 """Models"""
 #takes image x and ouputs a value between 0 and 1 where 0 is fake and 1 is real
-def discriminator(x):#might be too powerful, already lowered learning rate, but might need to add dropout also
-    with tf.variable_scope("discriminator", reuse=tf.AUTO_REUSE):
+def discriminator(x, name):#might be too powerful, already lowered learning rate, but might need to add dropout also
+    with tf.variable_scope(name):
         with tf.variable_scope("convolutional_layer_1"):
             x = convolutLayer(x, 4, (1,1))#3x256x256 -> 4x256x256
             x = layers.batch_normalization(x, training=True)
@@ -82,7 +82,14 @@ def discriminator(x):#might be too powerful, already lowered learning rate, but 
             logits = layers.dense(x, units=1, activation=None, kernel_initializer=tf.contrib.layers.xavier_initializer())#1024x4x4 to a shape of 1 to sigmoid
         with tf.variable_scope("output"):
             out = nn.sigmoid(x)
-    return out, logits #needed for loss function otherwise you double sigmoid
+        realLogits = logits[batchSize:]#first 32 is real
+        fakeLogits = logits[:batchSize]#last 32 is fake
+        #loss for each
+        realLoss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=realLogits, labels=tf.ones_like(realLogits)))
+        fakeLoss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fakeLogits, labels=tf.zeros_like(fakeLogits)))
+        #loss of both
+        totalLoss = tf.reduce_mean(realLoss + fakeLoss)#reduce mean perhaps redundant since both already done? Will test later
+    return out, logits, totalLoss, realLoss, fakeLoss
 
 def generator(z):
     with tf.variable_scope("generator"):
@@ -133,9 +140,9 @@ def generator(z):
 
 #Placeholders
 #makes input into discriminator a 4d array where it is array of 3d arrays to represent images
-x = tf.placeholder(dtype=tf.float32, shape=(None, 256, 256, 3), name="Images")
+x = tf.placeholder(dtype=tf.float32, shape=(batchSize, 256, 256, 3), name="RealImages")
 #noise unkown length for unkown number of images to be made
-z = tf.placeholder(dtype=tf.float32, shape=(None, noiseLength), name="Noise")
+z = tf.placeholder(dtype=tf.float32, shape=(batchSize, noiseLength), name="Noise")
 
 #Make models and set to use gpu
 #test if gpu is available
@@ -144,48 +151,29 @@ if tf.test.is_gpu_available():
     device = "/gpu:0"
 else:
     device = "/cpu:0"
-with tf.device(device):
-    generatorSamples = generator(z)#make generator with z (noise) placeholder
-    discriminatorReal, discriminatorRealLogits = discriminator(x)#make discriminator that takes data from the real
-    discriminatorFake, discriminatorFakeLogits = discriminator(generatorSamples)#make discriminator that takes fake data
 
-discriminatorLoss = tf.reduce_mean(
-                           nn.sigmoid_cross_entropy_with_logits(
-                               logits=discriminatorRealLogits, labels=tf.ones_like(discriminatorRealLogits) *.9,
-                               name="discriminator_loss_real"
-                               #takes real input and makes the labels 1 or real because it wants to identify real data as real
-                           )
-                    ) + tf.reduce_mean(
-                           nn.sigmoid_cross_entropy_with_logits(
-                               logits=discriminatorFakeLogits, labels=tf.zeros_like(discriminatorFakeLogits),
-                               name="discriminator_loss_fake"
-                               #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
-                           )
-                        )
-                    
-generatorLoss = tf.reduce_mean(
-                            nn.sigmoid_cross_entropy_with_logits(
-                               logits=discriminatorFakeLogits, labels=tf.ones_like(discriminatorFakeLogits),
-                               name="generator_loss_real"
-                               #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
-                            )
-                        )
-#write losses to tensorboard
-tf.summary.scalar("Discriminator Total Loss", discriminatorLoss)
-tf.summary.scalar("Generator Loss", generatorLoss)
+with tf.variable_scope("training"):
+    #create generator
+    with tf.device(device):
+        generatorSamples = generator(z)
+    generatorVariables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="generator")
+    #combine real and fake data
+    data = tf.concat(0, [x, generatorSamples])#real is first 32, fake is last 32
+    dataRaw = tf.identity(data)#this means it will always reevalidate each time it is looped through
 
-#Optimzer setup
-trainableVariables = tf.trainable_variables()
-#seperate trainable variables into ones for discriminator and generator
-dTrainableVariables = [var for var in trainableVariables if "discriminator" in var.name]
-gTrainableVariables = [var for var in trainableVariables if "generator" in var.name]
+    #prep unrolled discriminator
+    data = dataRaw
+    out, logits, totalLoss, realLoss, fakeLoss = discriminator(data, "discriminator0")#make original discriminator
+    discriminatorVariables = list(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="discriminator"))#get discriminator variables in list form
+    totalLoss0 = totalLoss
 
-#build adam optimizers. paper said to use .0002. discriminator a tad strong so used .0001. 256 version used smaller numbers b/c smaller batch
-learningRate = tf.train.exponential_decay(.001, globalStep,
-                                           1000, 0.96, staircase=True)#decays learning rate b .96 every 100k steps
-with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-    discriminatorOptimizer = tf.train.AdamOptimizer(learning_rate=learningRate, beta1=0.5).minimize(discriminatorLoss, var_list=gTrainableVariables)#epsilon is already the same
-    generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(generatorLoss, var_list=gTrainableVariables)#epsilon is already the same
+    #write losses to tensorboard
+    tf.summary.scalar("Discriminator Total Loss", discriminatorLoss)
+    tf.summary.scalar("Generator Loss", generatorLoss)
+
+    with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
+        discriminatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(discriminatorLoss, var_list=gTrainableVariables)#epsilon is already the same
+        generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(generatorLoss, var_list=gTrainableVariables)#epsilon is already the same
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
 config = tf.ConfigProto(intra_op_parallelism_threads=3, inter_op_parallelism_threads=3, allow_soft_placement=True)
