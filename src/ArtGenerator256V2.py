@@ -151,21 +151,15 @@ with tf.device(device):
 
 discriminatorLoss = tf.reduce_mean(
                            nn.sigmoid_cross_entropy_with_logits(
-                               logits=discriminatorRealLogits, labels=tf.ones_like(discriminatorRealLogits) *.9,
+                               logits=discriminatorRealLogits-discriminatorFakeLogits, labels=tf.ones_like(discriminatorRealLogits) * .5,
                                name="discriminator_loss_real"
                                #takes real input and makes the labels 1 or real because it wants to identify real data as real
                            )
-                    ) + tf.reduce_mean(
-                           nn.sigmoid_cross_entropy_with_logits(
-                               logits=discriminatorFakeLogits, labels=tf.zeros_like(discriminatorFakeLogits),
-                               name="discriminator_loss_fake"
-                               #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
-                           )
-                        )
+                    ) 
                     
 generatorLoss = tf.reduce_mean(
                             nn.sigmoid_cross_entropy_with_logits(
-                               logits=discriminatorFakeLogits, labels=tf.ones_like(discriminatorFakeLogits),
+                               logits=discriminatorFakeLogits-discriminatorRealLogits, labels=tf.ones_like(discriminatorFakeLogits),
                                name="generator_loss_real"
                                #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
                             )
