@@ -159,7 +159,7 @@ discriminatorLoss = tf.reduce_mean(
                     
 generatorLoss = tf.reduce_mean(
                             nn.sigmoid_cross_entropy_with_logits(
-                               logits=discriminatorFakeLogits-discriminatorRealLogits, labels=tf.ones_like(discriminatorFakeLogits),
+                               logits=discriminatorFakeLogits-discriminatorRealLogits, labels=tf.zeros_like(discriminatorFakeLogits),
                                name="generator_loss_real"
                                #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
                             )
@@ -175,10 +175,8 @@ dTrainableVariables = [var for var in trainableVariables if "discriminator" in v
 gTrainableVariables = [var for var in trainableVariables if "generator" in var.name]
 
 #build adam optimizers. paper said to use .0002. discriminator a tad strong so used .0001. 256 version used smaller numbers b/c smaller batch
-learningRate = tf.train.exponential_decay(.001, globalStep,
-                                           1000, 0.96, staircase=True)#decays learning rate b .96 every 100k steps
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-    discriminatorOptimizer = tf.train.AdamOptimizer(learning_rate=learningRate, beta1=0.5).minimize(discriminatorLoss, var_list=gTrainableVariables)#epsilon is already the same
+    discriminatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(discriminatorLoss, var_list=gTrainableVariables)#epsilon is already the same
     generatorOptimizer = tf.train.AdamOptimizer(learning_rate=.002, beta1=0.5).minimize(generatorLoss, var_list=gTrainableVariables)#epsilon is already the same
 
 #config for session with multithreading, but limit to 3 of my 4 CPUs (tensor uses all by default: https://stackoverflow.com/questions/38836269/does-tensorflow-view-all-cpus-of-one-machine-as-one-device)
@@ -200,7 +198,7 @@ with tf.Session(config=config) as sess:
 
             realData = realData[0].numpy() #turns them into numpy and sticks them into another array
                 
-            summary, _, _ = sess.run([merged, generatorOptimizer, discriminatorOptimizer], feed_dict={ x : realData, z : noise(batchSize, noiseLength) })
+            summary, _, _ = sess.run([merged, generatorOptimizer, discriminatorOptimizer], feed_dict={ x : realData, z : noise(len(realData), noiseLength) })
             if numBatch % 10 == 0:
                 writer.add_summary(summary, globalStep)
                 globalStep+=1
