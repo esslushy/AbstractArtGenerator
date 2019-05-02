@@ -149,21 +149,8 @@ with tf.device(device):
     discriminatorReal, discriminatorRealLogits = discriminator(x)#make discriminator that takes data from the real
     discriminatorFake, discriminatorFakeLogits = discriminator(generatorSamples)#make discriminator that takes fake data
 
-discriminatorLoss = tf.reduce_mean(
-                           nn.sigmoid_cross_entropy_with_logits(
-                               logits=discriminatorRealLogits-discriminatorFakeLogits, labels=tf.ones_like(discriminatorRealLogits) * .5,
-                               name="discriminator_loss_real"
-                               #takes real input and makes the labels 1 or real because it wants to identify real data as real
-                           )
-                    ) 
-                    
-generatorLoss = tf.reduce_mean(
-                            nn.sigmoid_cross_entropy_with_logits(
-                               logits=discriminatorFakeLogits-discriminatorRealLogits, labels=tf.zeros_like(discriminatorFakeLogits),
-                               name="generator_loss_real"
-                               #takes fake input and makes the labels 0 or fake because it wants to identify fake data as fake
-                            )
-                        )
+discriminatorLoss = tf.reduce_mean(nn.log(nn.sigmoid(discriminatorRealLogits - discriminatorFakeLogits) + 1e-4) * .5)       
+generatorLoss = tf.reduce_mean(nn.log(nn.sigmoid(discriminatorFakeLogits - discriminatorRealLogits) + 1e-4) * .5)
 #write losses to tensorboard
 tf.summary.scalar("Discriminator Total Loss", discriminatorLoss)
 tf.summary.scalar("Generator Loss", generatorLoss)
